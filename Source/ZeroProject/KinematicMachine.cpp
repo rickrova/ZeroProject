@@ -37,21 +37,16 @@ AKinematicMachine::AKinematicMachine()
 void AKinematicMachine::BeginPlay()
 {
 	Super::BeginPlay();
-	MachineLastPosition = KinematicComponent->GetComponentLocation();
 }
 
 void AKinematicMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (!MovementInput.IsZero())
+	if (!MovementInput.IsZero() && bGrounded)
 	{
 		FRotator deltaRotation = FRotator::ZeroRotator;
 		deltaRotation.Yaw = MovementInput.X * DeltaTime * Steering;
-
-		if (VerticalSpeed > 0) {
-			//deltaRotation.Pitch = -MovementInput.Y * DeltaTime * Steering;
-		}
 
 		ArrowComponent->AddLocalRotation(deltaRotation);
 	}
@@ -63,29 +58,36 @@ void AKinematicMachine::Tick(float DeltaTime)
 	else {
 		Speed -= DeccelerationRate * DeltaTime * DeltaTime;
 	}
+
 	Speed = FMath::Clamp(Speed, 0.f, MaxSpeed);
-	FVector deltaLocation = ArrowComponent->GetForwardVector() * Speed * DeltaTime;
+
+	FVector deltaLocation = ArrowComponent->GetForwardVector() * Speed * VerticalSpeedModifier;
 
 	FHitResult* hit = new FHitResult();
 	KinematicComponent->MoveComponent(deltaLocation, FQuat::Identity, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
-	if (hit->bBlockingHit) {
-		Speed -= hit->PenetrationDepth;
+	if (hit->bBlockingHit && hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
+		float impactAngle = FMath::RadiansToDegrees(acosf(FVector::DotProduct(ArrowComponent->GetForwardVector(), hit->Normal)));
+		Speed *= 1 - (impactAngle - 90) / 90;
 		FVector deflectedLocation = hit->ImpactPoint + hit->Normal * 12;
 		KinematicComponent->SetWorldLocation(deflectedLocation);
+		FVector selectedNormal = -hit->Normal;
+		if (FVector::DotProduct(hit->Normal, ArrowComponent->GetRightVector()) > 0) {
+			selectedNormal *= -1;
+		}
+		FRotator deflectedRotation = FRotationMatrix::MakeFromZY(ArrowComponent->GetUpVector(), selectedNormal).Rotator();
+		ArrowComponent->SetWorldRotation(deflectedRotation);
+		VisibleComponent->SetWorldRotation(deflectedRotation);
 	}
 	Raycast(DeltaTime);
-
-	FRotator desiredRotation = ArrowComponent->GetComponentRotation();
-	FRotator deltaRotation = desiredRotation - CameraContainerComponent->GetComponentRotation();
-	FRotator epsilonRotation = deltaRotation.GetNormalized() * DeltaTime * 10;
-	CameraContainerComponent->SetWorldRotation(CameraContainerComponent->GetComponentRotation() + epsilonRotation);
-
-	FRotator rotationWithRoll = CameraContainerComponent->GetComponentRotation();
-	rotationWithRoll.Roll += (1 - 1 / (1 + FMath::Abs(MovementInput.X) * 4)) * FMath::Sign(MovementInput.X) * 20;
-	if (VerticalSpeed > 0) {
-		rotationWithRoll.Pitch += (1 - 1 / (1 + FMath::Abs(MovementInput.Y) * 4)) * -FMath::Sign(MovementInput.Y) * 20;
-	}
-	VisibleComponent->SetWorldRotation(rotationWithRoll);  //FMath::Lerp(VisibleComponent->GetComponentRotation(), rotationWithRoll, DeltaTime * 10));
+	float speed = FVector::Distance(KinematicComponent->GetComponentLocation(), LastMachineLocation) / DeltaTime;//cm / seg
+	speed *= 60; //cm / min
+	speed *= 60; //cm / h
+	speed /= 100; // m / h
+	speed /= 1000; // km / k
+	speed *= 10; //scale adjustments
+	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f %s"), speed, " kmh"));
+	CameraComponent->FieldOfView = 100 + (Speed + VerticalSpeed) / MaxSpeed * 10;
+	LastMachineLocation = KinematicComponent->GetComponentLocation();
 }
 
 void AKinematicMachine::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -104,28 +106,60 @@ void AKinematicMachine::SetupPlayerInputComponent(class UInputComponent* PlayerI
 
 void AKinematicMachine::Raycast(float deltaTime)
 {
+	FRotator desiredRotation = CameraContainerComponent->GetComponentRotation();
+	if (bGrounded) {
+		FVector normalsSum = FVector::ZeroVector;
+		bool bAtLeastOneHit = false;
+		for (int i = 0; i < Raycount; i++) {
+
+			FHitResult* hit = new FHitResult();
+			FCollisionQueryParams params = FCollisionQueryParams();
+			params.AddIgnoredActor(this);
+			FVector start = ArrowComponent->GetComponentLocation() + ArrowComponent->GetUpVector() * RaySetVerticalOfset - ArrowComponent->GetForwardVector() * RaySetOffset + ArrowComponent->GetForwardVector() * RaysOffset * i;
+			FVector end = start + GravityDirection * RaySetDistance;
+			DrawDebugLine(GetWorld(), start, end, FColor::Orange, false);
+			if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1, params)) {
+				bAtLeastOneHit = true;
+				normalsSum += hit->Normal;
+			}
+		}
+		if (bAtLeastOneHit) {
+			normalsSum.Normalize();
+			GravityDirection = -normalsSum;
+			desiredRotation = FRotationMatrix::MakeFromZX(normalsSum, ArrowComponent->GetForwardVector()).Rotator();
+		}
+	}
+
+	FRotator deltaRotation = desiredRotation - CameraContainerComponent->GetComponentRotation();
+	FRotator epsilonRotation = deltaRotation.GetNormalized() * deltaTime * 10;
+	CameraContainerComponent->SetWorldRotation(CameraContainerComponent->GetComponentRotation() + epsilonRotation);
+
+	FRotator rotationWithRoll = CameraContainerComponent->GetComponentRotation();
+	if (bGrounded) {
+		rotationWithRoll.Roll += (1 - 1 / (1 + FMath::Abs(MovementInput.X) * 4)) * FMath::Sign(MovementInput.X) * 20 * (1 + RightDrift + LeftDrift);
+		AirYaw = rotationWithRoll.Yaw;
+	}
+	else {
+		rotationWithRoll.Pitch += (1 - 1 / (1 + FMath::Abs(MovementInput.Y) * 4)) * -FMath::Sign(MovementInput.Y) * 45;
+		AirYaw += (MovementInput.X + RightDrift - LeftDrift) * deltaTime * Steering;
+		rotationWithRoll.Yaw = AirYaw;
+	}
+	VisibleComponent->SetWorldRotation(FMath::Lerp(VisibleComponent->GetComponentRotation(), rotationWithRoll, deltaTime * 10));
+
 	FHitResult* hit = new FHitResult();
 	FCollisionQueryParams params = FCollisionQueryParams();
 	params.AddIgnoredActor(this);
-
 	FVector start = ArrowComponent->GetComponentLocation();
 	FVector end = start + GravityDirection * RayDistance;
-	DrawDebugLine(GetWorld(), start, end, FColor::Orange, false);
 	if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1, params)) {
-		LastNormal = hit->Normal;
-		GravityDirection = -LastNormal;
-		if (VerticalSpeed == 0) {
-			FRotator desiredRoation = FRotationMatrix::MakeFromZX(LastNormal, ArrowComponent->GetForwardVector()).Rotator();
-			ArrowComponent->SetWorldRotation(desiredRoation);
+		if (bGrounded) {
+			desiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
+			ArrowComponent->SetWorldRotation(desiredRotation);
 		}
-	}
-	end = start + GravityDirection * RayDistance;
-	if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1, params)) {
 		if (hit->Distance > 20) {
 			VerticalSpeed += Gravity * deltaTime * deltaTime;
-			FVector desiredLocation = start + GravityDirection * VerticalSpeed;
 			if (VerticalSpeed + 20 < hit->Distance) {
-				KinematicComponent->SetWorldLocation(desiredLocation);
+				KinematicComponent->MoveComponent(GravityDirection * VerticalSpeed * VerticalSpeedModifier, FQuat::Identity, true);
 			}
 			else {
 				VerticalSpeed = 0;
@@ -136,60 +170,63 @@ void AKinematicMachine::Raycast(float deltaTime)
 			VerticalSpeed = 0;
 			KinematicComponent->SetWorldLocation(hit->ImpactPoint - GravityDirection * 20);
 		}
+
+		if (hit->Distance > 30 && bGrounded) {
+			bGrounded = false;
+		}
+		else if(hit->Distance <= 30 && !bGrounded){
+			bGrounded = true;
+			VisibleComponent->SetWorldRotation(ArrowComponent->GetComponentRotation());
+		}
 	}
 	else {
+		if (bGrounded) {
+			bGrounded = false;
+		}
 		VerticalSpeed += Gravity * deltaTime * deltaTime;
-		FVector desiredLocation = start + GravityDirection * VerticalSpeed;
-		KinematicComponent->SetWorldLocation(desiredLocation);
-	}
-}
-
-void AKinematicMachine::CheckDesiredLocation(FVector desiredLocation) {
-	FHitResult* hit = new FHitResult();
-	FVector machineCurrentLocation = KinematicComponent->GetComponentLocation();
-	FCollisionQueryParams params = FCollisionQueryParams();
-	params.AddIgnoredActor(this);
-
-	DrawDebugLine(GetWorld(), machineCurrentLocation, desiredLocation, FColor::Green, false);
-	if (GetWorld()->LineTraceSingleByChannel(*hit, machineCurrentLocation, desiredLocation, ECC_WorldDynamic, params)) {
-		if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
-			GEngine->AddOnScreenDebugMessage(-1, 2000.f, FColor::Yellow, FString::Printf(TEXT("  WALL")));
-			FVector reflectedDirection = (machineCurrentLocation - hit->ImpactPoint).MirrorByVector(hit->ImpactNormal);
-			float deltaSize = (machineCurrentLocation - desiredLocation).Size() - hit->Distance;
-			FVector deflectedLocation = hit->ImpactPoint + reflectedDirection * deltaSize;
-			//KinematicComponent->MoveComponent(deltaLocation, FRotator::ZeroRotator, false, 0, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::ResetPhysics);
-		}
-		else {
-			GEngine->AddOnScreenDebugMessage(-1, 2000.f, FColor::Yellow, FString::Printf(TEXT("  FLOOR")));
-		}
+		KinematicComponent->MoveComponent(GravityDirection * VerticalSpeed * VerticalSpeedModifier * 0.5f, FQuat::Identity, true);
 	}
 }
 
 void AKinematicMachine::MoveRight(float AxisValue)
 {
 	MovementInput.X = FMath::Clamp(AxisValue, -1.0f, 1.0f);
+	RawMovementInput.X = FMath::Clamp(AxisValue, -1.0f, 1.0f);
 }
 
 void AKinematicMachine::DriftRight(float AxisValue)
 {
-	MovementInput.X = FMath::Clamp(MovementInput.X, -1.0f + AxisValue, 1.0f);
+	RightDrift = AxisValue;
+	MovementInput.X = FMath::Clamp(MovementInput.X, -1.0f + RightDrift, 1.0f);
 	if (MovementInput.X > 0)
 	{
-		Steering = FMath::Lerp(MinSteering, MaxSteering, AxisValue);
+		Steering = FMath::Lerp(MinSteering, MaxSteering, RightDrift);
 	}
 }
 void AKinematicMachine::DriftLeft(float AxisValue)
 {
-	MovementInput.X = FMath::Clamp(MovementInput.X, -1.0f, 1.0f - AxisValue);
+	LeftDrift = AxisValue;
+	MovementInput.X = FMath::Clamp(MovementInput.X, -1.0f, 1.0f - LeftDrift);
 	if (MovementInput.X < 0)
 	{
-		Steering = FMath::Lerp(MinSteering, MaxSteering, AxisValue);
+		Steering = FMath::Lerp(MinSteering, MaxSteering, LeftDrift);
 	}
 }
 
 void AKinematicMachine::MoveForward(float AxisValue)
 {
 	MovementInput.Y = FMath::Clamp(AxisValue, -1.0f, 1.0f);
+	if (bGrounded) {
+		VerticalSpeedModifier = 1;
+	}
+	else {
+		if (MovementInput.Y < 0) {
+			//VerticalSpeedModifier = MovementInput.Y * 0.5f + 1;
+		}
+		else {
+			//VerticalSpeedModifier = MovementInput.Y * 2 + 1;
+		}
+	}
 }
 
 void AKinematicMachine::Accelerate()

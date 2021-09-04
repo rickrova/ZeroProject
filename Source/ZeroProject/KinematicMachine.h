@@ -12,18 +12,14 @@ class ZEROPROJECT_API AKinematicMachine : public APawn
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this pawn's properties
 	AKinematicMachine();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 public:	
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 protected:
@@ -60,25 +56,37 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float MaxSteering = 150.0f;
 	UPROPERTY(EditAnywhere)
-		UMaterialInstance* CeroFrictionMaterial;
+		float DriftThereshold = 0.5f;
 	UPROPERTY(EditAnywhere)
-		UMaterialInstance* SomeFrictionMaterial;
+		float DriftFactor = 0.5f;
 	UPROPERTY(EditAnywhere)
-		UMaterialInstance* FullFrictionMaterial;
+		int Raycount = 10;
+	UPROPERTY(EditAnywhere)
+		float RaysOffset = 20;
+	UPROPERTY(EditAnywhere)
+		float RaySetOffset = 100;
+	UPROPERTY(EditAnywhere)
+		float RaySetVerticalOfset = 200;
+	UPROPERTY(EditAnywhere)
+		float RaySetDistance = 500;
 
 	FVector GravityDirection = -FVector::UpVector;
 
 	//Input variables
 	float Steering = 100.0f;
 	float Speed = 0.f;
+	float VerticalSpeed = 0;
+	float VerticalSpeedModifier = 1;
+	float RightDrift = 0;
+	float LeftDrift = 0;
+	float AirYaw = 0;
 	FVector MovementInput;
-	bool bAccelerating;
-	bool bBraking;
-	bool bPendingAcceleration;
-	FVector LastContact;
-	FVector LastNormal;
-	FVector MachineLastPosition;
-	float VerticalSpeed;
+	FVector RawMovementInput;
+	FVector LastMachineLocation;
+	bool bAccelerating = false;
+	bool bBraking = false;
+	bool bPendingAcceleration = false;
+	bool bGrounded = false;
 
 	//Input functions
 	void MoveForward(float AxisValue);
@@ -90,5 +98,4 @@ protected:
 	void Brake();
 	void LiftBrake();
 	void Raycast(float deltaTime);
-	void CheckDesiredLocation(FVector desiredLocation);
 };
