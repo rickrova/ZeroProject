@@ -43,6 +43,8 @@ protected:
 
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 5000.0f;
+    UPROPERTY(EditAnywhere)
+        float BoostSpeed = 5000.0f;
 	UPROPERTY(EditAnywhere)
 		float AccelerationRate = 5000.0f;
 	UPROPERTY(EditAnywhere)
@@ -75,6 +77,7 @@ protected:
 	//Input variables
 	float Steering = 100.0f;
 	float Speed = 0.f;
+    float SpeedModifier = 0.f;
 	float VerticalSpeed = 0;
 	float VerticalSpeedModifier = 1;
 	float RightDrift = 0;
@@ -97,5 +100,6 @@ protected:
 	void Deccelerate();
 	void Brake();
 	void LiftBrake();
+    void Boost();
 	void Raycast(float deltaTime);
 };

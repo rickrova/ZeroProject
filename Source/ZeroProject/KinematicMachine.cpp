@@ -61,7 +61,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 
 	Speed = FMath::Clamp(Speed, 0.f, MaxSpeed);
 
-	FVector deltaLocation = ArrowComponent->GetForwardVector() * Speed * VerticalSpeedModifier;
+	FVector deltaLocation = ArrowComponent->GetForwardVector() * (Speed + SpeedModifier);
 
 	FHitResult* hit = new FHitResult();
 	KinematicComponent->MoveComponent(deltaLocation, FQuat::Identity, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
@@ -85,9 +85,11 @@ void AKinematicMachine::Tick(float DeltaTime)
 	speed /= 100; // m / h
 	speed /= 1000; // km / k
 	speed *= 10; //scale adjustments
-	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f %s"), speed, " kmh"));
-	CameraComponent->FieldOfView = 100 + (Speed + VerticalSpeed) / MaxSpeed * 10;
+	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f", speed));
+	CameraComponent->FieldOfView = FMath::Lerp(CameraComponent->FieldOfView, speed/100 + 100, DeltaTime * 5);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
+    SpeedModifier -= DeltaTime * 10;
+    SpeedModifier = FMath::Clamp(SpeedModifier, 0.f, BoostSpeed);
 }
 
 void AKinematicMachine::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -102,6 +104,7 @@ void AKinematicMachine::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	InputComponent->BindAction("Accelerate", EInputEvent::IE_Released, this, &AKinematicMachine::Deccelerate);
 	InputComponent->BindAction("Brake", EInputEvent::IE_Pressed, this, &AKinematicMachine::Brake);
 	InputComponent->BindAction("Brake", EInputEvent::IE_Released, this, &AKinematicMachine::LiftBrake);
+    InputComponent->BindAction("Boost", EInputEvent::IE_Pressed, this, &AKinematicMachine::Boost);
 }
 
 void AKinematicMachine::Raycast(float deltaTime)
@@ -184,7 +187,7 @@ void AKinematicMachine::Raycast(float deltaTime)
 			bGrounded = false;
 		}
 		VerticalSpeed += Gravity * deltaTime * deltaTime;
-		KinematicComponent->MoveComponent(GravityDirection * VerticalSpeed * VerticalSpeedModifier * 0.5f, FQuat::Identity, true);
+		KinematicComponent->MoveComponent(GravityDirection * VerticalSpeed * VerticalSpeedModifier, FQuat::Identity, true);
 	}
 }
 
@@ -220,12 +223,8 @@ void AKinematicMachine::MoveForward(float AxisValue)
 		VerticalSpeedModifier = 1;
 	}
 	else {
-		if (MovementInput.Y < 0) {
-			//VerticalSpeedModifier = MovementInput.Y * 0.5f + 1;
-		}
-		else {
-			//VerticalSpeedModifier = MovementInput.Y * 2 + 1;
-		}
+		VerticalSpeedModifier += MovementInput.Y * GetWorld()->GetDeltaSeconds() * 10;
+        VerticalSpeedModifier = FMath::Clamp(VerticalSpeedModifier, 0.25f, 4.f);
 	}
 }
 
@@ -270,5 +269,9 @@ void AKinematicMachine::LiftBrake() {
 	else {
 		Deccelerate();
 	}
+}
+
+void AKinematicMachine::Boost(){
+    SpeedModifier = BoostSpeed;
 }
 
