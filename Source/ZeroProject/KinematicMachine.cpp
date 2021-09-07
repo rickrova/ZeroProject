@@ -37,19 +37,49 @@ AKinematicMachine::AKinematicMachine()
 void AKinematicMachine::BeginPlay()
 {
 	Super::BeginPlay();
+
+	TimerDel.BindUFunction(this, FName("ExitDrift"));
+}
+
+void AKinematicMachine::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	// Ensure the fuze timer is cleared by using the timer handle
+	//GetWorld()->GetTimerManager().ClearTimer(FuzeTimerHandle);
+
+	// Alternatively you can clear ALL timers that belong to this (Actor) instance.
+	GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
 }
 
 void AKinematicMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (!MovementInput.IsZero() && bGrounded)
+	FRotator deltaRotation = FRotator::ZeroRotator;
+	if (!MovementInput.IsZero() && bGrounded && !bDrifting)
 	{
-		FRotator deltaRotation = FRotator::ZeroRotator;
 		deltaRotation.Yaw = MovementInput.X * DeltaTime * Steering;
-
-		ArrowComponent->AddLocalRotation(deltaRotation);
+		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
+		if (FMath::Abs(deltaRotation.Yaw) > DriftThereshold) {
+			bDrifting = true;
+		}
 	}
+	else if (bGrounded && bDrifting) {
+		deltaRotation.Yaw = (1 - FVector::DotProduct(ArrowComponent->GetForwardVector(), VisibleComponent->GetForwardVector()))
+			* DeltaTime * 100.f * FMath::Sign(FVector::DotProduct(ArrowComponent->GetRightVector(), VisibleComponent->GetForwardVector()));
+		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
+		DriftYaw -= deltaRotation.Yaw;
+		if (FMath::Abs(deltaRotation.Yaw) < 0.03f && !bPendingDrift) {
+			GetWorldTimerManager().SetTimer(TimerHandle, TimerDel, 0.1f, false, 0.1f);
+			bPendingDrift = true;
+		}
+		else if(FMath::Abs(deltaRotation.Yaw) >= 0.03f && bPendingDrift){
+			bPendingDrift = false;
+			GetWorldTimerManager().ClearTimer(TimerHandle);
+		}
+	}
+	ArrowComponent->AddLocalRotation(deltaRotation);
 
 	if (bAccelerating)
 	{
@@ -85,7 +115,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 	speed /= 100; // m / h
 	speed /= 1000; // km / k
 	speed *= 10; //scale adjustments
-	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f", speed));
+	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
 	CameraComponent->FieldOfView = FMath::Lerp(CameraComponent->FieldOfView, speed/100 + 100, DeltaTime * 5);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
     SpeedModifier -= DeltaTime * 10;
@@ -139,7 +169,9 @@ void AKinematicMachine::Raycast(float deltaTime)
 
 	FRotator rotationWithRoll = CameraContainerComponent->GetComponentRotation();
 	if (bGrounded) {
-		rotationWithRoll.Roll += (1 - 1 / (1 + FMath::Abs(MovementInput.X) * 4)) * FMath::Sign(MovementInput.X) * 20 * (1 + RightDrift + LeftDrift);
+		if (!bDrifting) {
+			rotationWithRoll.Roll += (1 - 1 / (1 + FMath::Abs(MovementInput.X) * 4)) * FMath::Sign(MovementInput.X) * 20 * (1 + RightDrift + LeftDrift);
+		}
 		AirYaw = rotationWithRoll.Yaw;
 	}
 	else {
@@ -148,6 +180,14 @@ void AKinematicMachine::Raycast(float deltaTime)
 		rotationWithRoll.Yaw = AirYaw;
 	}
 	VisibleComponent->SetWorldRotation(FMath::Lerp(VisibleComponent->GetComponentRotation(), rotationWithRoll, deltaTime * 10));
+	if (bGrounded && bDrifting) {
+		DriftYaw += MovementInput.X * deltaTime * 60;
+		DriftYaw = FMath::Clamp(DriftYaw, -40.f, 40.f);
+		FRotator deltaRotator = FRotator::ZeroRotator;
+		//deltaRotator.Yaw = MovementInput.X * 20;
+		deltaRotator.Yaw = DriftYaw;
+		VisibleComponent->AddLocalRotation(deltaRotator);
+	}
 
 	FHitResult* hit = new FHitResult();
 	FCollisionQueryParams params = FCollisionQueryParams();
@@ -273,5 +313,9 @@ void AKinematicMachine::LiftBrake() {
 
 void AKinematicMachine::Boost(){
     SpeedModifier = BoostSpeed;
+}
+
+void AKinematicMachine::ExitDrift() {
+	bDrifting = false;
 }
 

@@ -16,6 +16,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:	
 	virtual void Tick(float DeltaTime) override;
@@ -46,6 +47,8 @@ protected:
     UPROPERTY(EditAnywhere)
         float BoostSpeed = 5000.0f;
 	UPROPERTY(EditAnywhere)
+		float BoostDecceleration = 10.0f;
+	UPROPERTY(EditAnywhere)
 		float AccelerationRate = 5000.0f;
 	UPROPERTY(EditAnywhere)
 		float DeccelerationRate = 5000.0f;
@@ -58,9 +61,7 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float MaxSteering = 150.0f;
 	UPROPERTY(EditAnywhere)
-		float DriftThereshold = 0.5f;
-	UPROPERTY(EditAnywhere)
-		float DriftFactor = 0.5f;
+		float DriftThereshold = 3.f;
 	UPROPERTY(EditAnywhere)
 		int Raycount = 10;
 	UPROPERTY(EditAnywhere)
@@ -83,6 +84,7 @@ protected:
 	float RightDrift = 0;
 	float LeftDrift = 0;
 	float AirYaw = 0;
+	float DriftYaw = 0;
 	FVector MovementInput;
 	FVector RawMovementInput;
 	FVector LastMachineLocation;
@@ -90,6 +92,10 @@ protected:
 	bool bBraking = false;
 	bool bPendingAcceleration = false;
 	bool bGrounded = false;
+	bool bDrifting = false;
+	bool bPendingDrift = false;
+	FTimerHandle TimerHandle;
+	FTimerDelegate TimerDel;
 
 	//Input functions
 	void MoveForward(float AxisValue);
@@ -102,4 +108,7 @@ protected:
 	void LiftBrake();
     void Boost();
 	void Raycast(float deltaTime);
+
+	UFUNCTION()
+	void ExitDrift();
 };
