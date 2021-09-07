@@ -70,11 +70,11 @@ void AKinematicMachine::Tick(float DeltaTime)
 			* DeltaTime * 100.f * FMath::Sign(FVector::DotProduct(ArrowComponent->GetRightVector(), VisibleComponent->GetForwardVector()));
 		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
 		DriftYaw -= deltaRotation.Yaw;
-		if (FMath::Abs(deltaRotation.Yaw) < 0.03f && !bPendingDrift) {
+		if (FMath::Abs(deltaRotation.Yaw) < 0.02f && !bPendingDrift) {
 			GetWorldTimerManager().SetTimer(TimerHandle, TimerDel, 0.1f, false, 0.1f);
 			bPendingDrift = true;
 		}
-		else if(FMath::Abs(deltaRotation.Yaw) >= 0.03f && bPendingDrift){
+		else if(FMath::Abs(deltaRotation.Yaw) >= 0.02f && bPendingDrift){
 			bPendingDrift = false;
 			GetWorldTimerManager().ClearTimer(TimerHandle);
 		}
@@ -97,7 +97,9 @@ void AKinematicMachine::Tick(float DeltaTime)
 	KinematicComponent->MoveComponent(deltaLocation, FQuat::Identity, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 	if (hit->bBlockingHit && hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
 		float impactAngle = FMath::RadiansToDegrees(acosf(FVector::DotProduct(ArrowComponent->GetForwardVector(), hit->Normal)));
-		Speed *= 1 - (impactAngle - 90) / 90;
+        float decimationFactor = 1 - (impactAngle - 90) / 90;
+        Speed *= decimationFactor;
+        SpeedModifier *= decimationFactor;
 		FVector deflectedLocation = hit->ImpactPoint + hit->Normal * 12;
 		KinematicComponent->SetWorldLocation(deflectedLocation);
 		FVector selectedNormal = -hit->Normal;
@@ -106,7 +108,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 		}
 		FRotator deflectedRotation = FRotationMatrix::MakeFromZY(ArrowComponent->GetUpVector(), selectedNormal).Rotator();
 		ArrowComponent->SetWorldRotation(deflectedRotation);
-		VisibleComponent->SetWorldRotation(deflectedRotation);
+		//VisibleComponent->SetWorldRotation(deflectedRotation);
 	}
 	Raycast(DeltaTime);
 	float speed = FVector::Distance(KinematicComponent->GetComponentLocation(), LastMachineLocation) / DeltaTime;//cm / seg
@@ -116,7 +118,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 	speed /= 1000; // km / k
 	speed *= 10; //scale adjustments
 	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
-	CameraComponent->FieldOfView = FMath::Lerp(CameraComponent->FieldOfView, speed/100 + 100, DeltaTime * 5);
+	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/100 + 100, DeltaTime * 5), 100.f, 130.f);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
     SpeedModifier -= DeltaTime * 10;
     SpeedModifier = FMath::Clamp(SpeedModifier, 0.f, BoostSpeed);
@@ -219,7 +221,15 @@ void AKinematicMachine::Raycast(float deltaTime)
 		}
 		else if(hit->Distance <= 30 && !bGrounded){
 			bGrounded = true;
+            float tempYaw = VisibleComponent->GetComponentRotation().Yaw;
 			VisibleComponent->SetWorldRotation(ArrowComponent->GetComponentRotation());
+            FRotator tempRotator = FRotator::ZeroRotator;
+            tempRotator.Yaw = tempYaw;
+            VisibleComponent->AddLocalRotation(tempRotator);
+            float deltaYaw = ArrowComponent->GetComponentRotation().Yaw - tempYaw;
+            if(FMath::Abs(deltaYaw) > 10){
+                bDrifting = true;
+            }
 		}
 	}
 	else {
