@@ -66,10 +66,10 @@ void AKinematicMachine::Tick(float DeltaTime)
 		}
 	}
 	else if (bGrounded && bDrifting) {
-		deltaRotation.Yaw = (1 - FVector::DotProduct(ArrowComponent->GetForwardVector(), VisibleComponent->GetForwardVector()))
-			* DeltaTime * 100.f * FMath::Sign(FVector::DotProduct(ArrowComponent->GetRightVector(), VisibleComponent->GetForwardVector()));
+		deltaRotation.Yaw = (1 - FVector::DotProduct( CameraContainerComponent->GetForwardVector(), VisibleComponent->GetForwardVector()))
+			* DeltaTime * 100.f * FMath::Sign(FVector::DotProduct(CameraContainerComponent->GetRightVector(), VisibleComponent->GetForwardVector()));
 		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
-		DriftYaw -= deltaRotation.Yaw;
+		DriftYaw -= deltaRotation.Yaw/10;
 		if (FMath::Abs(deltaRotation.Yaw) < 0.02f && !bPendingDrift) {
 			GetWorldTimerManager().SetTimer(TimerHandle, TimerDel, 0.1f, false, 0.1f);
 			bPendingDrift = true;
@@ -118,7 +118,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 	speed /= 1000; // km / k
 	speed *= 10; //scale adjustments
 	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
-	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/100 + 100, DeltaTime * 5), 100.f, 130.f);
+	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/22 + 60, DeltaTime * 5), 100.f, 180.f);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
     SpeedModifier -= DeltaTime * 10;
     SpeedModifier = FMath::Clamp(SpeedModifier, 0.f, BoostSpeed);
@@ -183,7 +183,7 @@ void AKinematicMachine::Raycast(float deltaTime)
 	}
 	VisibleComponent->SetWorldRotation(FMath::Lerp(VisibleComponent->GetComponentRotation(), rotationWithRoll, deltaTime * 10));
 	if (bGrounded && bDrifting) {
-		DriftYaw += MovementInput.X * deltaTime * 60;
+		DriftYaw += MovementInput.X * deltaTime * 20;
 		DriftYaw = FMath::Clamp(DriftYaw, -40.f, 40.f);
 		FRotator deltaRotator = FRotator::ZeroRotator;
 		//deltaRotator.Yaw = MovementInput.X * 20;
