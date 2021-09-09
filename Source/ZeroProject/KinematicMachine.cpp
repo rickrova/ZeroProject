@@ -39,6 +39,7 @@ void AKinematicMachine::BeginPlay()
 	Super::BeginPlay();
 
 	TimerDel.BindUFunction(this, FName("ExitDrift"));
+	DriftDelegate.BindUFunction(this, FName("ResetDrift"));
 }
 
 void AKinematicMachine::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -61,8 +62,12 @@ void AKinematicMachine::Tick(float DeltaTime)
 	{
 		deltaRotation.Yaw = MovementInput.X * DeltaTime * Steering;
 		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
-		if (FMath::Abs(deltaRotation.Yaw) > DriftThereshold) {
+		if (deltaRotation.Yaw > DriftThereshold && bCanDrift) {
 			bDrifting = true;
+			DriftingOffset = 0.5f;
+		}else if (deltaRotation.Yaw < -DriftThereshold && bCanDrift) {
+			bDrifting = true;
+			DriftingOffset = -0.5f;
 		}
 	}
 	else if (bGrounded && bDrifting) {
@@ -152,7 +157,7 @@ void AKinematicMachine::Raycast(float deltaTime)
 			params.AddIgnoredActor(this);
 			FVector start = ArrowComponent->GetComponentLocation() + ArrowComponent->GetUpVector() * RaySetVerticalOfset - ArrowComponent->GetForwardVector() * RaySetOffset + ArrowComponent->GetForwardVector() * RaysOffset * i;
 			FVector end = start + GravityDirection * RaySetDistance;
-			DrawDebugLine(GetWorld(), start, end, FColor::Orange, false);
+			//DrawDebugLine(GetWorld(), start, end, FColor::Orange, false);
 			if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1, params)) {
 				bAtLeastOneHit = true;
 				normalsSum += hit->Normal;
@@ -183,10 +188,9 @@ void AKinematicMachine::Raycast(float deltaTime)
 	}
 	VisibleComponent->SetWorldRotation(FMath::Lerp(VisibleComponent->GetComponentRotation(), rotationWithRoll, deltaTime * 10));
 	if (bGrounded && bDrifting) {
-		DriftYaw += MovementInput.X * deltaTime * 20;
-		DriftYaw = FMath::Clamp(DriftYaw, -40.f, 40.f);
+		DriftYaw += (MovementInput.X + (RightDrift - LeftDrift) * 0.5f + DriftingOffset) * deltaTime * 20;
+		DriftYaw = FMath::Clamp(DriftYaw, -15.f, 15.f);
 		FRotator deltaRotator = FRotator::ZeroRotator;
-		//deltaRotator.Yaw = MovementInput.X * 20;
 		deltaRotator.Yaw = DriftYaw;
 		VisibleComponent->AddLocalRotation(deltaRotator);
 	}
@@ -227,9 +231,14 @@ void AKinematicMachine::Raycast(float deltaTime)
             tempRotator.Yaw = tempYaw;
             VisibleComponent->AddLocalRotation(tempRotator);
             float deltaYaw = ArrowComponent->GetComponentRotation().Yaw - tempYaw;
-            if(FMath::Abs(deltaYaw) > 10){
+            if(deltaYaw > 10){
                 bDrifting = true;
-            }
+				DriftingOffset = 0.5f;
+			}
+			else if (deltaYaw < -10) {
+				bDrifting = true;
+				DriftingOffset = -0.5f;
+			}
 		}
 	}
 	else {
@@ -327,5 +336,13 @@ void AKinematicMachine::Boost(){
 
 void AKinematicMachine::ExitDrift() {
 	bDrifting = false;
+	DriftingOffset = 0.f;
+	bCanDrift = false;
+
+	GetWorldTimerManager().SetTimer(TimerHandle, DriftDelegate, 1.f, false, 1.f);
+}
+
+void AKinematicMachine::ResetDrift() {
+	bCanDrift = true;
 }
 

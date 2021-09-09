@@ -85,6 +85,7 @@ protected:
 	float LeftDrift = 0;
 	float AirYaw = 0;
 	float DriftYaw = 0;
+	float DriftingOffset = 0.f;
 	FVector MovementInput;
 	FVector RawMovementInput;
 	FVector LastMachineLocation;
@@ -94,8 +95,10 @@ protected:
 	bool bGrounded = false;
 	bool bDrifting = false;
 	bool bPendingDrift = false;
+	bool bCanDrift = true;
 	FTimerHandle TimerHandle;
 	FTimerDelegate TimerDel;
+	FTimerDelegate DriftDelegate;
 
 	//Input functions
 	void MoveForward(float AxisValue);
@@ -110,5 +113,7 @@ protected:
 	void Raycast(float deltaTime);
 
 	UFUNCTION()
-	void ExitDrift();
+		void ExitDrift();
+	UFUNCTION()
+		void ResetDrift();
 };
