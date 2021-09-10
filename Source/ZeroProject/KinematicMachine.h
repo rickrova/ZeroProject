@@ -96,15 +96,20 @@ protected:
 	bool bDrifting = false;
 	bool bPendingDrift = false;
 	bool bCanDrift = true;
+	bool bCanExitDrift = false;
 	FTimerHandle TimerHandle;
+	FTimerHandle EDTimerHandle;
 	FTimerDelegate TimerDel;
 	FTimerDelegate DriftDelegate;
+	FTimerDelegate ExitDriftDelegate;
 
 	//Input functions
 	void MoveForward(float AxisValue);
 	void MoveRight(float AxisValue);
-	void DriftRight(float AxisValue);
-	void DriftLeft(float AxisValue);
+	void GripLeft(float AxisValue);
+	void GripRight(float AxisValue);
+	void DriftLeft();
+	void DriftRight();
 	void Accelerate();
 	void Deccelerate();
 	void Brake();
@@ -116,4 +121,6 @@ protected:
 		void ExitDrift();
 	UFUNCTION()
 		void ResetDrift();
+	UFUNCTION()
+		void ResetExitDrift();
 };
