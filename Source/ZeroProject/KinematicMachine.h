@@ -84,6 +84,7 @@ protected:
 	float RightDrift = 0;
 	float LeftDrift = 0;
 	float AirYaw = 0;
+    float AirPitch = 0;
 	float DriftYaw = 0;
 	float DriftingOffset = 0.f;
 	FVector MovementInput;
