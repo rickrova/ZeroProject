@@ -64,23 +64,22 @@ void AKinematicMachine::Tick(float DeltaTime)
 	if (!MovementInput.IsZero() && bGrounded && !bDrifting)
 	{
 		deltaRotation.Yaw = MovementInput.X * DeltaTime * Steering;
-		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
+		if ((Speed + SpeedModifier) > MaxSpeed * 0.9f && bCanDrift && FMath::Abs(MovementInput.X + RightDrift - LeftDrift) > DriftThereshold) {
+			bDrifting = true;
+			bCanExitDrift = false;
+			GetWorldTimerManager().SetTimer(EDTimerHandle, ExitDriftDelegate, 1.f, false, 1.f);
+		}
 	}
 	else if (bGrounded && bDrifting) {
 		deltaRotation.Yaw = (1 - FVector::DotProduct( CameraContainerComponent->GetForwardVector(), VisibleComponent->GetForwardVector()))
 			* DeltaTime * 100.f * FMath::Sign(FVector::DotProduct(CameraContainerComponent->GetRightVector(), VisibleComponent->GetForwardVector()));
-		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Delta yaw: %f"), deltaRotation.Yaw));
 		DriftYaw -= deltaRotation.Yaw/5;
 
-//		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("pending drift %s"), bPendingDrift ? TEXT("true") : TEXT("false")));
-//		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("can exit drift %s"), bCanExitDrift ? TEXT("true") : TEXT("false")));
 		if (FMath::Abs(deltaRotation.Yaw) < 0.05f && !bPendingDrift && bCanExitDrift) {
-			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("Timer to exit drift")));
 			GetWorldTimerManager().SetTimer(TimerHandle, TimerDel, 0.01f, false, 0.01f);
 			bPendingDrift = true;
 		}
 		else if(FMath::Abs(deltaRotation.Yaw) >= 0.05f && bPendingDrift){
-			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("Timer cancelled")));
 			bPendingDrift = false;
 			GetWorldTimerManager().ClearTimer(TimerHandle);
 		}
@@ -114,7 +113,6 @@ void AKinematicMachine::Tick(float DeltaTime)
 		}
 		FRotator deflectedRotation = FRotationMatrix::MakeFromZY(ArrowComponent->GetUpVector(), selectedNormal).Rotator();
 		ArrowComponent->SetWorldRotation(deflectedRotation);
-		//VisibleComponent->SetWorldRotation(deflectedRotation);
 	}
 	Raycast(DeltaTime);
 	float speed = FVector::Distance(KinematicComponent->GetComponentLocation(), LastMachineLocation) / DeltaTime;//cm / seg
@@ -180,7 +178,8 @@ void AKinematicMachine::Raycast(float deltaTime)
 	if (bGrounded) {
         FRotator rotationWithRoll = CameraContainerComponent->GetComponentRotation();
 		if (!bDrifting) {
-			rotationWithRoll.Roll += (1 - 1 / (1 + FMath::Abs(MovementInput.X) * 4)) * FMath::Sign(MovementInput.X) * 20 * (1 + RightDrift + LeftDrift);
+			rotationWithRoll.Roll += ((1 - 1 / (1 + FMath::Abs(MovementInput.X) * 4)) * FMath::Sign(MovementInput.X)
+				+ (1 - 1 / (1 + FMath::Abs(RightDrift - LeftDrift) * 4)) * FMath::Sign(RightDrift - LeftDrift)) * 20;
 		}
         VisibleComponent->SetWorldRotation(FMath::Lerp(VisibleComponent->GetComponentRotation(), rotationWithRoll, deltaTime * 10));
         if(bDrifting){
@@ -238,7 +237,7 @@ void AKinematicMachine::Raycast(float deltaTime)
             FRotator FlatWithYaw = FRotationMatrix::MakeFromZY(ArrowComponent->GetUpVector(), VisibleComponent->GetRightVector()).Rotator();
             VisibleComponent->SetWorldRotation(FlatWithYaw);
             float deltaYaw = FlatWithYaw.Yaw - ArrowComponent->GetComponentRotation().Yaw;
-            if(FMath::Abs(deltaYaw) > 10 && Speed > MaxSpeed * 0.9f && bCanDrift){
+            if(FMath::Abs(deltaYaw) > 10 && (Speed + SpeedModifier) > MaxSpeed * 0.9f && bCanDrift){
                 bDrifting = true;
 				GetWorldTimerManager().SetTimer(EDTimerHandle, ExitDriftDelegate, 1.f, false, 1.f);
 			}
@@ -279,7 +278,7 @@ void AKinematicMachine::GripLeft(float AxisValue)
 }
 void AKinematicMachine::DriftLeft()
 {
-	if (!bDrifting && Speed > MaxSpeed * 0.9f && bCanDrift && MovementInput.X < 0) {
+	if (!bDrifting && (Speed + SpeedModifier) > MaxSpeed * 0.9f && bCanDrift && MovementInput.X < 0) {
 		bDrifting = true;
 		bCanExitDrift = false;
 		GetWorldTimerManager().SetTimer(EDTimerHandle, ExitDriftDelegate, 1.f, false, 1.f);
@@ -287,7 +286,7 @@ void AKinematicMachine::DriftLeft()
 }
 void AKinematicMachine::DriftRight()
 {
-	if (!bDrifting && Speed > MaxSpeed * 0.9f && bCanDrift && MovementInput.X > 0) {
+	if (!bDrifting && (Speed + SpeedModifier) > MaxSpeed * 0.9f && bCanDrift && MovementInput.X > 0) {
 		bDrifting = true;
 		bCanExitDrift = false;
 		GetWorldTimerManager().SetTimer(EDTimerHandle, ExitDriftDelegate, 1.f, false, 1.f);
