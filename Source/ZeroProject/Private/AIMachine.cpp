@@ -2,6 +2,7 @@
 
 
 #include "AIMachine.h"
+#include "Engine/SkeletalMeshSocket.h"
 
 // Sets default values
 AAIMachine::AAIMachine()
@@ -20,7 +21,7 @@ void AAIMachine::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TargetComponent = Target->GetComponents(UAllocator);
+	TargetComponent = Target->FindComponentByClass<USkeletalMeshComponent>(); 
 }
 
 // Called every frame
@@ -28,8 +29,8 @@ void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	RootComponent->SetWorldLocation(Target->GetComponentLocation());
-	RootComponent->SetWorldRotation(Target->GetComponentRotation());
+	RootComponent->SetWorldLocation(TargetComponent->GetSocketLocation("BoneSocket"));
+	RootComponent->SetWorldRotation(TargetComponent->GetSocketRotation("BoneSocket"));
 
 }
 

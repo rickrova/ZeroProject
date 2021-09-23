@@ -34,6 +34,6 @@ protected:
 	UPROPERTY(BlueprintReadWrite)
 		float AnimationTime;
 
-	USceneComponent* TargetComponent;
+	USkeletalMeshComponent* TargetComponent;
 
 };
