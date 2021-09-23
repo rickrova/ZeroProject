@@ -23,4 +23,17 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+protected:
+
+	UPROPERTY(VisibleAnywhere)
+		UStaticMeshComponent* VisibleComponent;
+
+	UPROPERTY(EditAnywhere)
+		AActor* Target;
+
+	UPROPERTY(BlueprintReadWrite)
+		float AnimationTime;
+
+	USceneComponent* TargetComponent;
+
 };

@@ -195,10 +195,11 @@ void AKinematicMachine::Raycast(float deltaTime)
 	else {
         FRotator deltaRotator = FRotator::ZeroRotator;
         deltaRotator.Yaw = (MovementInput.X + RightDrift - LeftDrift) * deltaTime * Steering;
-        float smooth = 1 - AirPitch/45;
-        float delta = -MovementInput.Y * deltaTime * Steering * smooth;
+        float smooth = 1 - FMath::Abs(AirPitch)/60;
+        float delta = -MovementInput.Y * deltaTime * MaxSteering;
             AirPitch += delta;
-            deltaRotator.Pitch = delta;
+			AirPitch = FMath::Clamp(AirPitch, -60.f, 60.f);
+            deltaRotator.Pitch = delta * smooth;
         GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Airpitch: %f"), AirPitch));
         VisibleComponent->AddLocalRotation(deltaRotator);
 	}
