@@ -27,12 +27,14 @@ protected:
 
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
-
 	UPROPERTY(EditAnywhere)
 		AActor* Target;
-
-	UPROPERTY(BlueprintReadWrite)
-		float AnimationTime;
+	UPROPERTY(EditAnywhere)
+		float MaxSpeed = 1.0f;
+	UPROPERTY(EditAnywhere)
+		float AccelerationRate = 100.0f;
+	UPROPERTY(BlueprintReadOnly)
+		float Speed = 0.f;
 
 	USkeletalMeshComponent* TargetComponent;
 

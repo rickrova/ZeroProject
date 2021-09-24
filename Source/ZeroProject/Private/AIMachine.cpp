@@ -29,8 +29,10 @@ void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	Speed += AccelerationRate * DeltaTime * DeltaTime;
+	Speed = FMath::Clamp(Speed, 0.f, MaxSpeed);
+
 	RootComponent->SetWorldLocation(TargetComponent->GetSocketLocation("BoneSocket"));
 	RootComponent->SetWorldRotation(TargetComponent->GetSocketRotation("BoneSocket"));
-
 }
 
