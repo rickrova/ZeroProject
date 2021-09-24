@@ -12,16 +12,16 @@ AAIMachine::AAIMachine()
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	VisibleComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisibleComponent"));
+    Guide = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Guide"));
 
 	VisibleComponent->SetupAttachment(RootComponent);
+    Guide->SetupAttachment(RootComponent);
 }
 
 // Called when the game starts or when spawned
 void AAIMachine::BeginPlay()
 {
 	Super::BeginPlay();
-
-	TargetComponent = Target->FindComponentByClass<USkeletalMeshComponent>(); 
 }
 
 // Called every frame
@@ -32,7 +32,7 @@ void AAIMachine::Tick(float DeltaTime)
 	Speed += AccelerationRate * DeltaTime * DeltaTime;
 	Speed = FMath::Clamp(Speed, 0.f, MaxSpeed);
 
-	RootComponent->SetWorldLocation(TargetComponent->GetSocketLocation("BoneSocket"));
-	RootComponent->SetWorldRotation(TargetComponent->GetSocketRotation("BoneSocket"));
+	RootComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket"));
+	RootComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
 }
 
