@@ -28,7 +28,9 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
     UPROPERTY(VisibleAnywhere)
-        USkeletalMeshComponent* Guide;
+        USkeletalMeshComponent* RightGuide;
+	UPROPERTY(VisibleAnywhere)
+		USkeletalMeshComponent* LeftGuide;
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 1.0f;
 	UPROPERTY(EditAnywhere)
