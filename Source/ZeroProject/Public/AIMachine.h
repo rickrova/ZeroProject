@@ -28,14 +28,22 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
     UPROPERTY(VisibleAnywhere)
-        USkeletalMeshComponent* RightGuide;
-	UPROPERTY(VisibleAnywhere)
-		USkeletalMeshComponent* LeftGuide;
+        USkeletalMeshComponent* Guide;
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 1.0f;
-	UPROPERTY(EditAnywhere)
-		float AccelerationRate = 100.0f;
+    UPROPERTY(EditAnywhere)
+        float AccelerationRate = 100.0f;
+    UPROPERTY(EditAnywhere)
+        float DeltaX = 0.f;
 	UPROPERTY(BlueprintReadOnly)
-		float Speed = 0.f;
+    float Speed = 0.f;
+    
+    float AngleAlpha = 0.f;
+    float AngleBeta = 0.f;
+    float PreSpeed = 0.f;
+    
+    FVector CurrentDirection;
+    FVector LastDirection;
+    FVector DeltaDirection;
 
 };

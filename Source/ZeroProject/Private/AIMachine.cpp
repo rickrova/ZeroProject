@@ -12,12 +12,10 @@ AAIMachine::AAIMachine()
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	VisibleComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisibleComponent"));
-	RightGuide = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("RightGuide"));
-	LeftGuide = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LeftGuide"));
+	Guide = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Guide"));
 
 	VisibleComponent->SetupAttachment(RootComponent);
-	RightGuide->SetupAttachment(RootComponent);
-	LeftGuide->SetupAttachment(RootComponent);
+	Guide->SetupAttachment(RootComponent);
 }
 
 // Called when the game starts or when spawned
@@ -30,13 +28,21 @@ void AAIMachine::BeginPlay()
 void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+    VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+    CurrentDirection = VisibleComponent->GetForwardVector();
+    FVector rightDirection = VisibleComponent->GetRightVector();
+    AngleAlpha = FMath::RadiansToDegrees(acosf(FVector::DotProduct(rightDirection, LastDirection)));
+    AngleBeta = 180 - AngleAlpha;
 
-	Speed += AccelerationRate * DeltaTime * DeltaTime;
-	Speed = FMath::Clamp(Speed, 0.f, MaxSpeed);
+	PreSpeed += AccelerationRate * DeltaTime * DeltaTime;
+	PreSpeed = FMath::Clamp(PreSpeed, 0.f, MaxSpeed);
+    float aditionalSpeed = (FMath::Atan(DeltaX)/2 + 1)*(AngleAlpha - AngleBeta);
+    Speed = aditionalSpeed + PreSpeed;
 
-	FVector desiredPosition = FMath::Lerp(RightGuide->GetSocketLocation("BoneSocket"), LeftGuide->GetSocketLocation("BoneSocket"), 0.5f);
+	FVector desiredPosition = Guide->GetSocketLocation("BoneSocket")
+    + VisibleComponent->GetRightVector() * DeltaX;
 
 	VisibleComponent->SetWorldLocation(desiredPosition);
-	VisibleComponent->SetWorldRotation(RightGuide->GetSocketRotation("BoneSocket"));
+    LastDirection = CurrentDirection;
 }
 
