@@ -35,6 +35,8 @@ protected:
         float AccelerationRate = 100.0f;
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
+    UPROPERTY(EditAnywhere)
+        float CurveFactor = 1.f;
 	UPROPERTY(BlueprintReadOnly)
     float Speed = 0.f;
     

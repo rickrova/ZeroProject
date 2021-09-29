@@ -34,10 +34,12 @@ void AAIMachine::Tick(float DeltaTime)
     AngleAlpha = FMath::RadiansToDegrees(acosf(FVector::DotProduct(rightDirection, LastDirection)));
     AngleBeta = 180 - AngleAlpha;
 
+	FVector flatLastDirection = FVector::VectorPlaneProject(LastDirection, VisibleComponent->GetUpVector());
+	float epsilonX = -FVector::DotProduct(flatLastDirection, VisibleComponent->GetRightVector());
 	PreSpeed += AccelerationRate * DeltaTime * DeltaTime;
 	PreSpeed = FMath::Clamp(PreSpeed, 0.f, MaxSpeed);
-    float aditionalSpeed = (FMath::Atan(DeltaX)/2 + 1)*(AngleAlpha - AngleBeta);
-    Speed = aditionalSpeed + PreSpeed;
+    float aditionalSpeed = FMath::Atan(DeltaX * epsilonX);
+		Speed = CurveFactor * aditionalSpeed * PreSpeed / MaxSpeed + PreSpeed;
 
 	FVector desiredPosition = Guide->GetSocketLocation("BoneSocket")
     + VisibleComponent->GetRightVector() * DeltaX;
