@@ -115,9 +115,10 @@ protected:
 	void Deccelerate();
 	void Brake();
 	void LiftBrake();
-    void Boost();
 	void Raycast(float deltaTime);
 
+	UFUNCTION(BlueprintCallable)
+		void Boost();
 	UFUNCTION()
 		void ExitDrift();
 	UFUNCTION()

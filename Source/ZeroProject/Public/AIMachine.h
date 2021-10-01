@@ -60,5 +60,6 @@ protected:
 		void StartRace();
 
 public:
+	UPROPERTY(BlueprintReadWrite)
 		float PreSpeed = 0.f;
 };
