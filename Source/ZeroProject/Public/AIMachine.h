@@ -18,6 +18,7 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:	
 	// Called every frame
@@ -27,25 +28,37 @@ protected:
 
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
-    UPROPERTY(VisibleAnywhere)
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
         USkeletalMeshComponent* Guide;
+
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 1.0f;
     UPROPERTY(EditAnywhere)
         float AccelerationRate = 100.0f;
     UPROPERTY(EditAnywhere)
+        float Steering = 10.f;
+    UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
+	UPROPERTY(EditAnywhere)
+		float SmartDeltaAngleThereshold = 0.25f;
     UPROPERTY(EditAnywhere)
         float CurveFactor = 1.f;
-	UPROPERTY(BlueprintReadOnly)
-    float Speed = 0.f;
-    
-    float AngleAlpha = 0.f;
-    float AngleBeta = 0.f;
-    float PreSpeed = 0.f;
-    
-    FVector CurrentDirection;
-    FVector LastDirection;
-    FVector DeltaDirection;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		float StartPosition = 0.f;
 
+	UPROPERTY(BlueprintReadOnly)
+		float Speed = 0.f;
+
+	float DesiredDeltaX = 0;
+	bool bCanRace = false;
+	bool bCanSetNewDesiredDeltaX = false;
+    FVector LastDirection;
+	FTimerHandle TimerHandle;
+	FTimerDelegate TimerDelegate;
+
+	UFUNCTION()
+		void StartRace();
+
+public:
+		float PreSpeed = 0.f;
 };
