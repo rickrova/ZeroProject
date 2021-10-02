@@ -2,6 +2,7 @@
 
 
 #include "AIMachine.h"
+#include "../KinematicMachine.h" // /Rick/Projects/ZeroProject/Unreal/Source/ZeroProject/KinematicMachine.h"
 #include "Engine/SkeletalMeshSocket.h"
 
 AAIMachine::AAIMachine()
@@ -75,7 +76,13 @@ void AAIMachine::Tick(float DeltaTime)
 				//DeltaX *= 0.95f;
 				PreSpeed *= 0.975f;
 				AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
-				otherMachine->PreSpeed *= 1.025f;
+				AKinematicMachine* playerMachine = Cast<AKinematicMachine>(hit->GetActor());
+				if (otherMachine != NULL) {
+					otherMachine->PreSpeed *= 1.025f;
+				}
+				else if (playerMachine != NULL) {
+					//playerMachine
+				}
 			}
 		}
 
