@@ -49,7 +49,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 		float Speed = 0.f;
 
-	float DesiredDeltaX = 0;
 	bool bCanRace = false;
 	bool bCanSetNewDesiredDeltaX = false;
     FVector LastDirection;
@@ -62,4 +61,8 @@ protected:
 public:
 	UPROPERTY(BlueprintReadWrite)
 		float PreSpeed = 0.f;
+    
+    float DesiredDeltaX = 0;
+    
+    void HitByMachine();
 };

@@ -68,52 +68,67 @@ void AAIMachine::Tick(float DeltaTime)
 		VisibleComponent->MoveComponent(deltaLocation, Guide->GetSocketRotation("BoneSocket"), true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
-				DeltaX *= 0.95f;
+                VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation()
+                                                   - VisibleComponent->GetRightVector() * 10 * FMath::Sign(DeltaX));
+                DeltaX -= 10 * FMath::Sign(DeltaX);
+                DesiredDeltaX = DeltaX * 0.95f;
 				PreSpeed *= 0.95f;
-					DesiredDeltaX = -DeltaX * 0.9;
 			}
 			else {
 				//DeltaX *= 0.95f;
-				PreSpeed *= 0.975f;
 				AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
 				AKinematicMachine* playerMachine = Cast<AKinematicMachine>(hit->GetActor());
 				if (otherMachine != NULL) {
-					otherMachine->PreSpeed *= 1.025f;
+                    float forwardDot = FVector::DotProduct(hit->Normal, -VisibleComponent->GetForwardVector());
+                    float rightDot = FVector::DotProduct(hit->Normal, -VisibleComponent->GetRightVector());
+                    if(FMath::Abs(forwardDot) > FMath::Abs(rightDot)){
+                        otherMachine->PreSpeed = PreSpeed * 1.025;
+                    }else{
+                        //float tempDesiredDeltaX = DesiredDeltaX;
+                        //VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation()
+                                                           //- VisibleComponent->GetRightVector() * 10 * FMath::Sign(rightDot));
+                        //DeltaX = 10 * FMath::Sign(rightDot);
+                        DesiredDeltaX = DeltaX;
+                        
+                        otherMachine->HitByMachine();
+                    }
 				}
 				else if (playerMachine != NULL) {
 					//playerMachine
 				}
+                PreSpeed *= 0.975f;
 			}
 		}
 
-		if (FMath::Abs(deltaAngle) < SmartDeltaAngleThereshold) {
-			if (bCanSetNewDesiredDeltaX) {
+		if (FMath::Abs(deltaAngle) < SmartDeltaAngleThereshold
+            && bCanSetNewDesiredDeltaX) {
 				bCanSetNewDesiredDeltaX = false;
 				float rr = FMath::RandRange(-1.f, 1.f);
-				DesiredDeltaX = DeltaX * FMath::Sign(rr);
+				DesiredDeltaX = 300 * FMath::Sign(rr);
 				//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("delta change: %f"), rr));
 				//DeltaX = DesiredDeltaX;
-			}
 			//DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * 1.025f);
-
-			float horSpeed = DeltaTime * 200.f;
-
-			if (DeltaX < DesiredDeltaX) {
-				DeltaX += horSpeed;
-			}
-			else if (DeltaX > DesiredDeltaX) {
-				DeltaX -= horSpeed;
-			}
-			if (FMath::Abs(DeltaX - DesiredDeltaX) < horSpeed) {
-				DeltaX = DesiredDeltaX;
-			}
 		}
-		else {
-			if (!bCanSetNewDesiredDeltaX) {
+		else if(FMath::Abs(deltaAngle) > SmartDeltaAngleThereshold)
+        {
+            if(!bCanSetNewDesiredDeltaX) {
 				bCanSetNewDesiredDeltaX = true;
 			}
-			DeltaX += deltaAngle * Steering * DeltaTime;
+            DesiredDeltaX += deltaAngle * Steering * DeltaTime;
 		}
+        
+        /*float horSpeed = DeltaTime * 200.f;
+
+        if (DeltaX < DesiredDeltaX) {
+            DeltaX += horSpeed;
+        }
+        else if (DeltaX > DesiredDeltaX) {
+            DeltaX -= horSpeed;
+        }
+        if (FMath::Abs(DeltaX - DesiredDeltaX) < horSpeed) {
+            DeltaX = DesiredDeltaX;
+        }*/
+        DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * 0.5f);
 		LastDirection = VisibleComponent->GetForwardVector();
 	}
 	else {
@@ -125,5 +140,9 @@ void AAIMachine::Tick(float DeltaTime)
 void AAIMachine::StartRace() {
 	//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("Start race")));
 	bCanRace = true;
+}
+
+void AAIMachine::HitByMachine() {
+    DesiredDeltaX = DeltaX;
 }
 
