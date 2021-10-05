@@ -51,14 +51,20 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 		float Speed = 0.f;
 
+    int Gravity = 980;
+    float VerticalSpeed = 0;
 	bool bCanRace = false;
 	bool bCanSetNewDesiredDeltaX = false;
+    bool bGrounded = true;
     FVector LastDirection;
+    FVector DesiredVerticalMovement;
 	FTimerHandle TimerHandle;
 	FTimerDelegate TimerDelegate;
 
 	UFUNCTION()
 		void StartRace();
+    
+    void SetHeight();
 
 public:
 	UPROPERTY(BlueprintReadWrite)

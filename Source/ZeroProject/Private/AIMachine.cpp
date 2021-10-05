@@ -71,8 +71,9 @@ void AAIMachine::Tick(float DeltaTime)
                 VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation()
                                                    - VisibleComponent->GetRightVector() * 10 * FMath::Sign(DeltaX));
                 DeltaX -= 10 * FMath::Sign(DeltaX);
-                DesiredDeltaX = DeltaX * 0.95f;
-				PreSpeed *= 0.95f;
+                float newDesiredDelta = FMath::RandRange(0.f, 0.95f);
+                DesiredDeltaX = DeltaX * newDesiredDelta;
+				PreSpeed *= 0.9f;
 			}
 			else {
 				//DeltaX *= 0.95f;
@@ -145,5 +146,22 @@ void AAIMachine::HitByMachine(float rightDot) {
 }
 void AAIMachine::HitByMachine2(float forwardDot) {
 	PreSpeed *= 1 + 0.01f * FMath::Sign(forwardDot);
+}
+
+void AAIMachine::SetHeight(){
+    FHitResult* hit = new FHitResult();
+    FVector gravityDirection = -VisibleComponent->GetUpVector();
+    FVector start = VisibleComponent->GetComponentLocation();
+    FVector end = start + gravityDirection * 100;
+    if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
+        
+        if (hit->Distance > 20) {            
+            VerticalSpeed += Gravity * deltaTime * deltaTime;
+            DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+        }else{
+            VerticalSpeed = 0;
+            DesiredVerticalMovement = -gravityDirection * (20 - hit->Distance);
+        }
+    }
 }
 
