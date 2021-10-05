@@ -40,7 +40,9 @@ protected:
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
 	UPROPERTY(EditAnywhere)
-		float SmartDeltaAngleThereshold = 0.25f;
+		float SmartDeltaAngleTheresholdLow = 0.05f;
+	UPROPERTY(EditAnywhere)
+		float SmartDeltaAngleTheresholdHigh = 0.5f;
     UPROPERTY(EditAnywhere)
         float CurveFactor = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -64,5 +66,6 @@ public:
     
     float DesiredDeltaX = 0;
     
-    void HitByMachine();
+    void HitByMachine(float rightDot);
+	void HitByMachine2(float forwardDot);
 };

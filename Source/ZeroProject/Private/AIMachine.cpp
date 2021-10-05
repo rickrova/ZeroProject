@@ -79,18 +79,14 @@ void AAIMachine::Tick(float DeltaTime)
 				AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
 				AKinematicMachine* playerMachine = Cast<AKinematicMachine>(hit->GetActor());
 				if (otherMachine != NULL) {
-                    float forwardDot = FVector::DotProduct(hit->Normal, -VisibleComponent->GetForwardVector());
-                    float rightDot = FVector::DotProduct(hit->Normal, -VisibleComponent->GetRightVector());
+                    float forwardDot = FVector::DotProduct(hit->Normal, VisibleComponent->GetForwardVector());
+                    float rightDot = FVector::DotProduct(hit->ImpactNormal, VisibleComponent->GetRightVector());
                     if(FMath::Abs(forwardDot) > FMath::Abs(rightDot)){
-                        otherMachine->PreSpeed = PreSpeed * 1.025;
+						HitByMachine2(forwardDot);
+						otherMachine->HitByMachine2(-forwardDot);
                     }else{
-                        //float tempDesiredDeltaX = DesiredDeltaX;
-                        //VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation()
-                                                           //- VisibleComponent->GetRightVector() * 10 * FMath::Sign(rightDot));
-                        //DeltaX = 10 * FMath::Sign(rightDot);
-                        DesiredDeltaX = DeltaX;
-                        
-                        otherMachine->HitByMachine();
+						HitByMachine(rightDot);                        
+                        otherMachine->HitByMachine(-rightDot);
                     }
 				}
 				else if (playerMachine != NULL) {
@@ -100,7 +96,7 @@ void AAIMachine::Tick(float DeltaTime)
 			}
 		}
 
-		if (FMath::Abs(deltaAngle) < SmartDeltaAngleThereshold
+		if (FMath::Abs(deltaAngle) < SmartDeltaAngleTheresholdLow
             && bCanSetNewDesiredDeltaX) {
 				bCanSetNewDesiredDeltaX = false;
 				float rr = FMath::RandRange(-1.f, 1.f);
@@ -109,7 +105,7 @@ void AAIMachine::Tick(float DeltaTime)
 				//DeltaX = DesiredDeltaX;
 			//DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * 1.025f);
 		}
-		else if(FMath::Abs(deltaAngle) > SmartDeltaAngleThereshold)
+		else if(FMath::Abs(deltaAngle) > SmartDeltaAngleTheresholdHigh)
         {
             if(!bCanSetNewDesiredDeltaX) {
 				bCanSetNewDesiredDeltaX = true;
@@ -142,7 +138,12 @@ void AAIMachine::StartRace() {
 	bCanRace = true;
 }
 
-void AAIMachine::HitByMachine() {
-    DesiredDeltaX = DeltaX;
+void AAIMachine::HitByMachine(float rightDot) {
+	//VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation() + VisibleComponent->GetRightVector() * 10 * FMath::Sign(rightDot));
+	//DeltaX += 10 * FMath::Sign(rightDot);
+	DesiredDeltaX = DeltaX + 100 * FMath::Sign(rightDot);
+}
+void AAIMachine::HitByMachine2(float forwardDot) {
+	PreSpeed *= 1 + 0.01f * FMath::Sign(forwardDot);
 }
 
