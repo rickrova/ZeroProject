@@ -155,8 +155,7 @@ void AAIMachine::SetHeight(float deltaTime){
     FVector start = VisibleComponent->GetComponentLocation() - gravityDirection * 200;
     FVector end = start + gravityDirection * 400;
     if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
-		if (bGrounded) {
-		}
+        gravityDirection = - hit->Normal;
         if (hit->Distance > 220) {            
             VerticalSpeed += Gravity * deltaTime * deltaTime;
 			if (VerticalSpeed + 220 < hit->Distance) {
