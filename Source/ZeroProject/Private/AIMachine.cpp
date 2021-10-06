@@ -38,7 +38,8 @@ void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	if (bCanRace) {
-		VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+		SetHeight(DeltaTime);
+
 		FVector rightDirection = VisibleComponent->GetRightVector();
 
 		FVector flatLastDirection = FVector::VectorPlaneProject(LastDirection, VisibleComponent->GetUpVector());
@@ -60,12 +61,12 @@ void AAIMachine::Tick(float DeltaTime)
 		}
 		Speed = CurveFactor * curveSpeedStabilizer * DeltaTime + PreSpeed;
 
-		FVector desiredPosition = Guide->GetSocketLocation("BoneSocket")
-			+ VisibleComponent->GetRightVector() * DeltaX;
+		FVector desiredPosition = Guide->GetSocketLocation("BoneSocket") + VisibleComponent->GetRightVector() * DeltaX;
 		FVector deltaLocation = desiredPosition - VisibleComponent->GetComponentLocation();
+		FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, VisibleComponent->GetUpVector()) + DesiredVerticalMovement;
 
 		FHitResult* hit = new FHitResult();
-		VisibleComponent->MoveComponent(deltaLocation, Guide->GetSocketRotation("BoneSocket"), true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+		VisibleComponent->MoveComponent(flatDeltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
                 VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation()
@@ -148,20 +149,48 @@ void AAIMachine::HitByMachine2(float forwardDot) {
 	PreSpeed *= 1 + 0.01f * FMath::Sign(forwardDot);
 }
 
-void AAIMachine::SetHeight(){
+void AAIMachine::SetHeight(float deltaTime){
     FHitResult* hit = new FHitResult();
     FVector gravityDirection = -VisibleComponent->GetUpVector();
-    FVector start = VisibleComponent->GetComponentLocation();
-    FVector end = start + gravityDirection * 100;
+    FVector start = VisibleComponent->GetComponentLocation() - gravityDirection * 200;
+    FVector end = start + gravityDirection * 400;
     if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
-        
-        if (hit->Distance > 20) {            
+		if (bGrounded) {
+		}
+        if (hit->Distance > 220) {            
             VerticalSpeed += Gravity * deltaTime * deltaTime;
-            DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+			if (VerticalSpeed + 220 < hit->Distance) {
+				DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+			}
+			else {
+				VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+				DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, VisibleComponent->GetForwardVector()).Rotator();
+				//VisibleComponent->SetWorldRotation(desiredRotation);
+				VerticalSpeed = 0;
+				DesiredVerticalMovement = -gravityDirection * (220 - hit->Distance);
+			}
         }else{
+			VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+			DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, VisibleComponent->GetForwardVector()).Rotator();
+			//VisibleComponent->SetWorldRotation(desiredRotation);
             VerticalSpeed = 0;
-            DesiredVerticalMovement = -gravityDirection * (20 - hit->Distance);
+            DesiredVerticalMovement = -gravityDirection * (220 - hit->Distance);
         }
-    }
+
+		if (hit->Distance > 230 && bGrounded) {
+			bGrounded = false;
+		}
+		else if (hit->Distance <= 230 && !bGrounded) {
+			bGrounded = true;
+		}
+
+	}
+	else {
+		if (bGrounded) {
+			bGrounded = false;
+		}
+		VerticalSpeed += Gravity * deltaTime * deltaTime;
+		DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+	}
 }
 
