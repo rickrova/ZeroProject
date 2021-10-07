@@ -4,6 +4,7 @@
 #include "AIMachine.h"
 #include "../KinematicMachine.h" // /Rick/Projects/ZeroProject/Unreal/Source/ZeroProject/KinematicMachine.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "Components/ArrowComponent.h"
 
 AAIMachine::AAIMachine()
 {
@@ -11,8 +12,10 @@ AAIMachine::AAIMachine()
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	VisibleComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisibleComponent"));
+	ArrowComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("ArrowComponent"));
 	Guide = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Guide"));
 
+	ArrowComponent->SetupAttachment(RootComponent);
 	VisibleComponent->SetupAttachment(RootComponent);
 	Guide->SetupAttachment(RootComponent);
 }
@@ -40,12 +43,12 @@ void AAIMachine::Tick(float DeltaTime)
 	if (bCanRace) {
 		SetHeight(DeltaTime);
 
-		FVector rightDirection = VisibleComponent->GetRightVector();
+		FVector rightDirection = ArrowComponent->GetRightVector();
 
-		FVector flatLastDirection = FVector::VectorPlaneProject(LastDirection, VisibleComponent->GetUpVector());
+		FVector flatLastDirection = FVector::VectorPlaneProject(LastDirection, ArrowComponent->GetUpVector());
 		flatLastDirection.Normalize();
-		float epsilonX = FVector::DotProduct(VisibleComponent->GetForwardVector(), flatLastDirection);
-		float sign = -FMath::Sign(FVector::DotProduct(VisibleComponent->GetRightVector(), flatLastDirection));
+		float epsilonX = FVector::DotProduct(ArrowComponent->GetForwardVector(), flatLastDirection);
+		float sign = -FMath::Sign(FVector::DotProduct(ArrowComponent->GetRightVector(), flatLastDirection));
 		float deltaAngle = FMath::RadiansToDegrees(FMath::Acos(epsilonX)) * sign;
 		//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("angle: %f"), deltaAngle));
 		float curveSpeedStabilizer = FMath::Sin(deltaAngle) * DeltaX;
@@ -61,16 +64,16 @@ void AAIMachine::Tick(float DeltaTime)
 		}
 		Speed = CurveFactor * curveSpeedStabilizer * DeltaTime + PreSpeed;
 
-		FVector desiredPosition = Guide->GetSocketLocation("BoneSocket") + VisibleComponent->GetRightVector() * DeltaX;
-		FVector deltaLocation = desiredPosition - VisibleComponent->GetComponentLocation();
-		FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, VisibleComponent->GetUpVector()) + DesiredVerticalMovement;
+		FVector desiredPosition = Guide->GetSocketLocation("BoneSocket") + ArrowComponent->GetRightVector() * DeltaX;
+		FVector deltaLocation = desiredPosition - ArrowComponent->GetComponentLocation();
+		FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, ArrowComponent->GetUpVector()) + DesiredVerticalMovement;
 
 		FHitResult* hit = new FHitResult();
-		VisibleComponent->MoveComponent(flatDeltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+		ArrowComponent->MoveComponent(flatDeltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
-                VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation()
-                                                   - VisibleComponent->GetRightVector() * 10 * FMath::Sign(DeltaX));
+				ArrowComponent->SetWorldLocation(ArrowComponent->GetComponentLocation()
+                                                   - ArrowComponent->GetRightVector() * 10 * FMath::Sign(DeltaX));
                 DeltaX -= 10 * FMath::Sign(DeltaX);
                 float newDesiredDelta = FMath::RandRange(0.f, 0.95f);
                 DesiredDeltaX = DeltaX * newDesiredDelta;
@@ -81,8 +84,8 @@ void AAIMachine::Tick(float DeltaTime)
 				AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
 				AKinematicMachine* playerMachine = Cast<AKinematicMachine>(hit->GetActor());
 				if (otherMachine != NULL) {
-                    float forwardDot = FVector::DotProduct(hit->Normal, VisibleComponent->GetForwardVector());
-                    float rightDot = FVector::DotProduct(hit->ImpactNormal, VisibleComponent->GetRightVector());
+                    float forwardDot = FVector::DotProduct(hit->Normal, ArrowComponent->GetForwardVector());
+                    float rightDot = FVector::DotProduct(hit->ImpactNormal, ArrowComponent->GetRightVector());
                     if(FMath::Abs(forwardDot) > FMath::Abs(rightDot)){
 						HitByMachine2(forwardDot);
 						otherMachine->HitByMachine2(-forwardDot);
@@ -127,11 +130,11 @@ void AAIMachine::Tick(float DeltaTime)
             DeltaX = DesiredDeltaX;
         }*/
         DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * 0.5f);
-		LastDirection = VisibleComponent->GetForwardVector();
+		LastDirection = ArrowComponent->GetForwardVector();
 	}
 	else {
-		VisibleComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + VisibleComponent->GetRightVector() * DeltaX);
-		VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+		ArrowComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + ArrowComponent->GetRightVector() * DeltaX);
+		ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
 	}
 }
 
@@ -141,7 +144,7 @@ void AAIMachine::StartRace() {
 }
 
 void AAIMachine::HitByMachine(float rightDot) {
-	//VisibleComponent->SetWorldLocation(VisibleComponent->GetComponentLocation() + VisibleComponent->GetRightVector() * 10 * FMath::Sign(rightDot));
+	//ArrowComponent->SetWorldLocation(ArrowComponent->GetComponentLocation() + ArrowComponent->GetRightVector() * 10 * FMath::Sign(rightDot));
 	//DeltaX += 10 * FMath::Sign(rightDot);
 	DesiredDeltaX = DeltaX + 100 * FMath::Sign(rightDot);
 }
@@ -151,35 +154,35 @@ void AAIMachine::HitByMachine2(float forwardDot) {
 
 void AAIMachine::SetHeight(float deltaTime){
     FHitResult* hit = new FHitResult();
-    FVector gravityDirection = -VisibleComponent->GetUpVector();
-    FVector start = VisibleComponent->GetComponentLocation() - gravityDirection * 200;
+    FVector gravityDirection = -ArrowComponent->GetUpVector();
+    FVector start = ArrowComponent->GetComponentLocation() - gravityDirection * 200;
     FVector end = start + gravityDirection * 400;
     if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
         gravityDirection = - hit->Normal;
-        if (hit->Distance > 220) {            
+        if (hit->Distance > 200) {            
             VerticalSpeed += Gravity * deltaTime * deltaTime;
-			if (VerticalSpeed + 220 < hit->Distance) {
+			if (VerticalSpeed + 200 < hit->Distance) {
 				DesiredVerticalMovement = gravityDirection * VerticalSpeed;
 			}
 			else {
-				VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
-				DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, VisibleComponent->GetForwardVector()).Rotator();
-				//VisibleComponent->SetWorldRotation(desiredRotation);
+				ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+				DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
+				//ArrowComponent->SetWorldRotation(desiredRotation);
 				VerticalSpeed = 0;
-				DesiredVerticalMovement = -gravityDirection * (220 - hit->Distance);
+				DesiredVerticalMovement = -gravityDirection * (200 - hit->Distance);
 			}
         }else{
-			VisibleComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
-			DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, VisibleComponent->GetForwardVector()).Rotator();
-			//VisibleComponent->SetWorldRotation(desiredRotation);
+			ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+			DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
+			//ArrowComponent->SetWorldRotation(desiredRotation);
             VerticalSpeed = 0;
-            DesiredVerticalMovement = -gravityDirection * (220 - hit->Distance);
+            DesiredVerticalMovement = -gravityDirection * (200 - hit->Distance);
         }
 
-		if (hit->Distance > 230 && bGrounded) {
+		if (hit->Distance > 210 && bGrounded) {
 			bGrounded = false;
 		}
-		else if (hit->Distance <= 230 && !bGrounded) {
+		else if (hit->Distance <= 210 && !bGrounded) {
 			bGrounded = true;
 		}
 

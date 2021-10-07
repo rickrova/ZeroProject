@@ -25,9 +25,10 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 protected:
-
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
+	UPROPERTY(VisibleAnywhere)
+		class UArrowComponent* ArrowComponent;
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
         USkeletalMeshComponent* Guide;
 
