@@ -59,6 +59,7 @@ protected:
     bool bGrounded = true;
     FVector LastDirection;
     FVector DesiredVerticalMovement;
+	FVector DesiredLocation;
 	FRotator DesiredRotation;
 	FTimerHandle TimerHandle;
 	FTimerDelegate TimerDelegate;

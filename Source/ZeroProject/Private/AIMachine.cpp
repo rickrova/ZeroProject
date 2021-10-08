@@ -41,10 +41,8 @@ void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	if (bCanRace) {
-		SetHeight(DeltaTime);
 
 		FVector rightDirection = ArrowComponent->GetRightVector();
-
 		FVector flatLastDirection = FVector::VectorPlaneProject(LastDirection, ArrowComponent->GetUpVector());
 		flatLastDirection.Normalize();
 		float epsilonX = FVector::DotProduct(ArrowComponent->GetForwardVector(), flatLastDirection);
@@ -64,16 +62,23 @@ void AAIMachine::Tick(float DeltaTime)
 		}
 		Speed = CurveFactor * curveSpeedStabilizer * DeltaTime + PreSpeed;
 
-		FVector desiredPosition = Guide->GetSocketLocation("BoneSocket") + ArrowComponent->GetRightVector() * DeltaX;
-		FVector deltaLocation = desiredPosition - ArrowComponent->GetComponentLocation();
-		FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, ArrowComponent->GetUpVector()) + DesiredVerticalMovement;
+		//FVector desiredLocation = Guide->GetSocketLocation("BoneSocket") + ArrowComponent->GetRightVector() * DeltaX;
+		//FVector deltaLocation = desiredPosition - ArrowComponent->GetComponentLocation();
+		//FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, ArrowComponent->GetUpVector()) + DesiredVerticalMovement;
 
+		ArrowComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + ArrowComponent->GetRightVector() * DeltaX);
+		ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+		SetHeight(DeltaTime);
+
+		//FVector deltaLocation = ArrowComponent->GetComponentLocation() - VisibleComponent->GetComponentLocation();
+		FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
 		FHitResult* hit = new FHitResult();
-		ArrowComponent->MoveComponent(flatDeltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+		VisibleComponent->MoveComponent(deltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
 				ArrowComponent->SetWorldLocation(ArrowComponent->GetComponentLocation()
                                                    - ArrowComponent->GetRightVector() * 10 * FMath::Sign(DeltaX));
+				VisibleComponent->SetWorldLocation(ArrowComponent->GetComponentLocation());
                 DeltaX -= 10 * FMath::Sign(DeltaX);
                 float newDesiredDelta = FMath::RandRange(0.f, 0.95f);
                 DesiredDeltaX = DeltaX * newDesiredDelta;
@@ -135,6 +140,9 @@ void AAIMachine::Tick(float DeltaTime)
 	else {
 		ArrowComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + ArrowComponent->GetRightVector() * DeltaX);
 		ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+		SetHeight(DeltaTime);
+		VisibleComponent->SetWorldLocation(DesiredLocation);
+		VisibleComponent->SetWorldRotation(DesiredRotation);
 	}
 }
 
@@ -163,20 +171,19 @@ void AAIMachine::SetHeight(float deltaTime){
             VerticalSpeed += Gravity * deltaTime * deltaTime;
 			if (VerticalSpeed + 200 < hit->Distance) {
 				DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+				DesiredLocation = hit->ImpactPoint + hit->Normal * 20;
 			}
 			else {
-				ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
-				DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
-				//ArrowComponent->SetWorldRotation(desiredRotation);
 				VerticalSpeed = 0;
-				DesiredVerticalMovement = -gravityDirection * (200 - hit->Distance);
+				DesiredVerticalMovement = FVector::ZeroVector; //-gravityDirection * (200 - hit->Distance);
+				DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
+				DesiredLocation = hit->ImpactPoint + hit->Normal * 20;
 			}
         }else{
-			ArrowComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
-			DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
-			//ArrowComponent->SetWorldRotation(desiredRotation);
             VerticalSpeed = 0;
-            DesiredVerticalMovement = -gravityDirection * (200 - hit->Distance);
+			DesiredVerticalMovement = FVector::ZeroVector; // -gravityDirection * (200 - hit->Distance);
+			DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
+			DesiredLocation = hit->ImpactPoint + hit->Normal * 20;
         }
 
 		if (hit->Distance > 210 && bGrounded) {
