@@ -71,9 +71,9 @@ void AAIMachine::Tick(float DeltaTime)
 		SetHeight(DeltaTime);
 
 		//FVector deltaLocation = ArrowComponent->GetComponentLocation() - VisibleComponent->GetComponentLocation();
-		FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
+        //FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
 		FHitResult* hit = new FHitResult();
-		VisibleComponent->MoveComponent(deltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+		VisibleComponent->MoveComponent(FlatDelta, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
 				ArrowComponent->SetWorldLocation(ArrowComponent->GetComponentLocation()
@@ -171,20 +171,25 @@ void AAIMachine::SetHeight(float deltaTime){
             VerticalSpeed += Gravity * deltaTime * deltaTime;
 			if (VerticalSpeed + 200 < hit->Distance) {
 				DesiredVerticalMovement = gravityDirection * VerticalSpeed;
-				DesiredLocation = hit->ImpactPoint + hit->Normal * 20;
+                VerticalOffset = FVector::Distance(VisibleComponent->GetComponentLocation(),
+                                                   ArrowComponent->GetComponentLocation())
+                - VerticalSpeed;
 			}
 			else {
 				VerticalSpeed = 0;
 				DesiredVerticalMovement = FVector::ZeroVector; //-gravityDirection * (200 - hit->Distance);
 				DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
-				DesiredLocation = hit->ImpactPoint + hit->Normal * 20;
+                VerticalOffset = MinVerticalOffset;
 			}
         }else{
             VerticalSpeed = 0;
 			DesiredVerticalMovement = FVector::ZeroVector; // -gravityDirection * (200 - hit->Distance);
 			DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, ArrowComponent->GetForwardVector()).Rotator();
-			DesiredLocation = hit->ImpactPoint + hit->Normal * 20;
+            VerticalOffset = MinVerticalOffset;
         }
+        DesiredLocation = hit->ImpactPoint + hit->Normal * VerticalOffset;
+        FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
+        FlatDelta = deltaLocation; //FVector::VectorPlaneProject(deltaLocation, ArrowComponent->GetUpVector());
 
 		if (hit->Distance > 210 && bGrounded) {
 			bGrounded = false;

@@ -40,6 +40,8 @@ protected:
         float Steering = 10.f;
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
+    UPROPERTY(EditAnywhere)
+        float MinVerticalOffset = 20.f;
 	UPROPERTY(EditAnywhere)
 		float SmartDeltaAngleTheresholdLow = 0.05f;
 	UPROPERTY(EditAnywhere)
@@ -54,12 +56,14 @@ protected:
 
     int Gravity = 9800;
     float VerticalSpeed = 0;
+    float VerticalOffset = 20.f;
 	bool bCanRace = false;
 	bool bCanSetNewDesiredDeltaX = false;
     bool bGrounded = true;
     FVector LastDirection;
     FVector DesiredVerticalMovement;
 	FVector DesiredLocation;
+    FVector FlatDelta;
 	FRotator DesiredRotation;
 	FTimerHandle TimerHandle;
 	FTimerDelegate TimerDelegate;
