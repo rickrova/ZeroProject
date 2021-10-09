@@ -28,7 +28,9 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
 	UPROPERTY(VisibleAnywhere)
-		class UArrowComponent* ArrowComponent;
+		class UArrowComponent* SurfaceComponent;
+	UPROPERTY(VisibleAnywhere)
+		class UArrowComponent* DynamicComponent;
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
         USkeletalMeshComponent* Guide;
 
@@ -61,8 +63,10 @@ protected:
 	bool bCanSetNewDesiredDeltaX = false;
     bool bGrounded = true;
     FVector LastDirection;
+	FVector LastSurfaceLocation;
     FVector DesiredVerticalMovement;
 	FVector DesiredLocation;
+	FVector SurfaceDelta;
     FVector FlatDelta;
 	FRotator DesiredRotation;
 	FTimerHandle TimerHandle;
