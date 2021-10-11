@@ -5,6 +5,7 @@
 #include "../KinematicMachine.h" // /Rick/Projects/ZeroProject/Unreal/Source/ZeroProject/KinematicMachine.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Components/ArrowComponent.h"
+#include "DrawDebugHelpers.h"
 
 AAIMachine::AAIMachine()
 {
@@ -65,7 +66,6 @@ void AAIMachine::Tick(float DeltaTime)
 		Speed = CurveFactor * curveSpeedStabilizer * DeltaTime + PreSpeed;
 
 		//FVector desiredLocation = Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX;
-		//FVector deltaLocation = desiredPosition - SurfaceComponent->GetComponentLocation();
 		//FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, SurfaceComponent->GetUpVector()) + DesiredVerticalMovement;
 
 		SurfaceComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX);
@@ -74,8 +74,9 @@ void AAIMachine::Tick(float DeltaTime)
 
 		//FVector deltaLocation = SurfaceComponent->GetComponentLocation() - VisibleComponent->GetComponentLocation();
         //FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
+        FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
 		FHitResult* hit = new FHitResult();
-		VisibleComponent->MoveComponent(FlatDelta, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+		VisibleComponent->MoveComponent(deltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
 				SurfaceComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation()
@@ -142,9 +143,11 @@ void AAIMachine::Tick(float DeltaTime)
 	else {
 		SurfaceComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX);
 		SurfaceComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
+        DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
+        DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 		SetHeight(DeltaTime);
-		VisibleComponent->SetWorldLocation(DesiredLocation);
-		VisibleComponent->SetWorldRotation(DesiredRotation);
+		VisibleComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
+		VisibleComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 	}
 }
 
@@ -165,17 +168,43 @@ void AAIMachine::HitByMachine2(float forwardDot) {
 void AAIMachine::SetHeight(float deltaTime){
 	DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 
-	SurfaceDelta = LastSurfaceLocation - SurfaceComponent->GetComponentLocation();
+	SurfaceDelta = SurfaceComponent->GetComponentLocation() - LastSurfaceLocation;
 	LastSurfaceLocation = SurfaceComponent->GetComponentLocation();
 	FlatDelta = FVector::VectorPlaneProject(SurfaceDelta, SurfaceComponent->GetUpVector());
-	DynamicComponent->SetWorldLocation(DynamicComponent->GetComponentLocation() + FlatDelta);
+	DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (0 + LastHeight));
 
     FHitResult* hit = new FHitResult();
     FVector gravityDirection = -SurfaceComponent->GetUpVector();
-    FVector start = SurfaceComponent->GetComponentLocation() - gravityDirection * 200;
+    FVector start = DynamicComponent->GetComponentLocation() - gravityDirection * 200;
     FVector end = start + gravityDirection * 400;
+    DrawDebugLine(GetWorld(), start, end, FColor::Orange, false, 0.1f);
     if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
-        gravityDirection = - hit->Normal;
+        //gravityDirection = - hit->Normal;
+        if(bDebug){
+            
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Distance: %f"), hit->Distance));
+        }
+        
+        if(hit->Distance < 220){
+            float currentHeight = FVector::Distance(hit->ImpactPoint, SurfaceComponent->GetComponentLocation());
+            LastVerticalDelta = currentHeight - LastHeight;
+            LastHeight = currentHeight;
+            
+            VerticalSpeed = 0;
+            //DesiredVerticalMovement = FVector::ZeroVector;
+            DynamicComponent->SetWorldLocation(hit->ImpactPoint);
+            DesiredLocation = hit->ImpactPoint + hit->Normal * 30;
+            DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, SurfaceComponent->GetForwardVector()).Rotator();
+        }else{
+            VerticalSpeed += Gravity * deltaTime * deltaTime;
+            LastHeight -= VerticalSpeed;
+            //DynamicComponent->SetWorldLocation(DynamicComponent->GetComponentLocation() - gravityDirection * LastHeight);
+            DesiredLocation = DynamicComponent->GetComponentLocation() - gravityDirection * 30;
+        }
+        
+        
+    /*
+        
         if (hit->Distance > 200) {            
             VerticalSpeed += Gravity * deltaTime * deltaTime;
 			if (VerticalSpeed + 200 < hit->Distance) {
@@ -199,14 +228,19 @@ void AAIMachine::SetHeight(float deltaTime){
         DesiredLocation = hit->ImpactPoint + hit->Normal * VerticalOffset;
         FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
         FlatDelta = deltaLocation; //FVector::VectorPlaneProject(deltaLocation, SurfaceComponent->GetUpVector());
+        
+        */
 
 	}
 	else {
-		if (bGrounded) {
-			bGrounded = false;
-		}
-		VerticalSpeed += Gravity * deltaTime * deltaTime;
-		DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+        VerticalSpeed += Gravity * deltaTime * deltaTime;
+        LastHeight -= VerticalSpeed;
+        //DynamicComponent->SetWorldLocation(DynamicComponent->GetComponentLocation() - gravityDirection * LastHeight);
+        DesiredLocation = DynamicComponent->GetComponentLocation() - gravityDirection * 30;
+        //DesiredVerticalMovement = gravityDirection * VerticalSpeed;
+        
+		//VerticalSpeed += Gravity * deltaTime * deltaTime;
+		//DesiredVerticalMovement = gravityDirection * VerticalSpeed;
 	}
 }
 

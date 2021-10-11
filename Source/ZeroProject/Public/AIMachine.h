@@ -52,6 +52,8 @@ protected:
         float CurveFactor = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		float StartPosition = 0.f;
+    UPROPERTY(EditAnywhere)
+    bool bDebug;
 
 	UPROPERTY(BlueprintReadOnly)
 		float Speed = 0.f;
@@ -59,6 +61,8 @@ protected:
     int Gravity = 9800;
     float VerticalSpeed = 0;
     float VerticalOffset = 20.f;
+    float LastVerticalDelta;
+    float LastHeight;
 	bool bCanRace = false;
 	bool bCanSetNewDesiredDeltaX = false;
     bool bGrounded = true;
