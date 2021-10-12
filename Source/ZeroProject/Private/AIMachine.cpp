@@ -166,30 +166,39 @@ void AAIMachine::HitByMachine2(float forwardDot) {
 }
 
 void AAIMachine::SetHeight(float deltaTime){
-	float continuityDistance = FVector::Distance(LastSurfaceLocation, Guide->GetSocketLocation("BoneSocket"));
-	if (continuityDistance > ContinuityThereshold) {
+	FVector locationDelta = LastSurfaceLocation - Guide->GetSocketLocation("BoneSocket");
+	FVector verticalProjection = locationDelta.ProjectOnToNormal(SurfaceComponent->GetUpVector()); 
+	if (verticalProjection.Size() > ContinuityThereshold) {
 		if (bDebug) {
 			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Discontinuity")));
 		}
-		LastHeight = continuityDistance;
+		LastHeight = verticalProjection.Size();
 	}
 
 	DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 	//DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * LastHeight);
 
-    FHitResult* hit = new FHitResult();
+	TArray<FHitResult> outHits;
     FVector gravityDirection = -SurfaceComponent->GetUpVector();
     FVector start = SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (LastHeight + 200);
     FVector end = start + gravityDirection * 400;
     //DrawDebugLine(GetWorld(), start, end, FColor::Orange, false, 0.1f);
-    if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
-        //gravityDirection = - hit->Normal;
+
+    if (GetWorld()->LineTraceMultiByChannel(outHits, start, end, ECC_GameTraceChannel1)) {
+        //gravityDirection = - outHits[0].Normal;
         /*if(bDebug){
             
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Distance: %f"), hit->Distance));
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Distance: %f"), outHits[0].Distance));
         }*/
-        
-        if(hit->Distance < 220){    
+
+		if (outHits.Num() > 1) {
+			SurfaceComponent->SetWorldLocation(outHits[1].ImpactPoint);
+		}
+		else {
+			SurfaceComponent->SetWorldLocation(outHits[0].ImpactPoint);
+		}
+
+        if(outHits[0].Distance < 220){
 			if (!bGrounded) {
 				bGrounded = true;
 				if(bDebug){
@@ -197,11 +206,11 @@ void AAIMachine::SetHeight(float deltaTime){
 				}
 			}
             //DesiredVerticalMovement = FVector::ZeroVector;
-            DynamicComponent->SetWorldLocation(hit->ImpactPoint);
-			DesiredLocation = hit->ImpactPoint + hit->Normal * DistanceToFloor;
-            DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, SurfaceComponent->GetForwardVector()).Rotator();
+            DynamicComponent->SetWorldLocation(outHits[0].ImpactPoint);
+			DesiredLocation = outHits[0].ImpactPoint + outHits[0].Normal * DistanceToFloor;
+            DesiredRotation = FRotationMatrix::MakeFromZX(outHits[0].Normal, SurfaceComponent->GetForwardVector()).Rotator();
 
-			float currentHeight = FVector::Distance(hit->ImpactPoint, SurfaceComponent->GetComponentLocation());
+			float currentHeight = FVector::Distance(outHits[0].ImpactPoint, SurfaceComponent->GetComponentLocation());
 			LastVerticalDelta = currentHeight - LastHeight;
 			LastHeight = currentHeight;
 			VerticalSpeed = LastVerticalDelta * 1.f;
