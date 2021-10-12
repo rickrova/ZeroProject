@@ -43,7 +43,9 @@ protected:
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
     UPROPERTY(EditAnywhere)
-        float MinVerticalOffset = 20.f;
+        float DistanceToFloor = 20.f;
+	UPROPERTY(EditAnywhere)
+		float ContinuityThereshold = 20.f;
 	UPROPERTY(EditAnywhere)
 		float SmartDeltaAngleTheresholdLow = 0.05f;
 	UPROPERTY(EditAnywhere)
@@ -60,7 +62,6 @@ protected:
 
     int Gravity = 9800;
     float VerticalSpeed = 0;
-    float VerticalOffset = 20.f;
     float LastVerticalDelta;
     float LastHeight;
 	bool bCanRace = false;
@@ -68,10 +69,7 @@ protected:
     bool bGrounded = true;
     FVector LastDirection;
 	FVector LastSurfaceLocation;
-    FVector DesiredVerticalMovement;
 	FVector DesiredLocation;
-	FVector SurfaceDelta;
-    FVector FlatDelta;
 	FRotator DesiredRotation;
 	FTimerHandle TimerHandle;
 	FTimerDelegate TimerDelegate;

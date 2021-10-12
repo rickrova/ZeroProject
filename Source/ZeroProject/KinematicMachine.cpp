@@ -121,7 +121,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 	speed /= 100; // m / h
 	speed /= 1000; // km / k
 	speed *= 10; //scale adjustments
-	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
+	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
 	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/22 + 60, DeltaTime * 5), 100.f, 180.f);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
     SpeedModifier -= DeltaTime * 10;
@@ -200,7 +200,7 @@ void AKinematicMachine::Raycast(float deltaTime)
             AirPitch += delta;
 			AirPitch = FMath::Clamp(AirPitch, -60.f, 60.f);
             deltaRotator.Pitch = delta * smooth;
-        GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Airpitch: %f"), AirPitch));
+        //GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Airpitch: %f"), AirPitch));
         VisibleComponent->AddLocalRotation(deltaRotator);
 	}
 

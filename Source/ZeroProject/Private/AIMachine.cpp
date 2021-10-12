@@ -44,14 +44,16 @@ void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	if (bCanRace) {
+		SurfaceComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX);
+		SurfaceComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
 
-		FVector rightDirection = SurfaceComponent->GetRightVector();
+		//FVector rightDirection = SurfaceComponent->GetRightVector();
 		FVector flatLastDirection = FVector::VectorPlaneProject(LastDirection, SurfaceComponent->GetUpVector());
 		flatLastDirection.Normalize();
 		float epsilonX = FVector::DotProduct(SurfaceComponent->GetForwardVector(), flatLastDirection);
 		float sign = -FMath::Sign(FVector::DotProduct(SurfaceComponent->GetRightVector(), flatLastDirection));
 		float deltaAngle = FMath::RadiansToDegrees(FMath::Acos(epsilonX)) * sign;
-		//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("angle: %f"), deltaAngle));
+
 		float curveSpeedStabilizer = FMath::Sin(deltaAngle) * DeltaX;
 		float deltaSpeed = AccelerationRate * DeltaTime * DeltaTime;
 		if (PreSpeed < MaxSpeed) {
@@ -68,8 +70,6 @@ void AAIMachine::Tick(float DeltaTime)
 		//FVector desiredLocation = Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX;
 		//FVector flatDeltaLocation = FVector::VectorPlaneProject(deltaLocation, SurfaceComponent->GetUpVector()) + DesiredVerticalMovement;
 
-		SurfaceComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX);
-		SurfaceComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
 		SetHeight(DeltaTime);
 
 		//FVector deltaLocation = SurfaceComponent->GetComponentLocation() - VisibleComponent->GetComponentLocation();
@@ -146,7 +146,7 @@ void AAIMachine::Tick(float DeltaTime)
         DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
         DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 		SetHeight(DeltaTime);
-		VisibleComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
+		VisibleComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * DistanceToFloor);
 		VisibleComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 	}
 }
@@ -166,40 +166,56 @@ void AAIMachine::HitByMachine2(float forwardDot) {
 }
 
 void AAIMachine::SetHeight(float deltaTime){
-	DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
+	float continuityDistance = FVector::Distance(LastSurfaceLocation, Guide->GetSocketLocation("BoneSocket"));
+	if (continuityDistance > ContinuityThereshold) {
+		if (bDebug) {
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Discontinuity")));
+		}
+		LastHeight = continuityDistance;
+	}
 
-	SurfaceDelta = SurfaceComponent->GetComponentLocation() - LastSurfaceLocation;
-	LastSurfaceLocation = SurfaceComponent->GetComponentLocation();
-	FlatDelta = FVector::VectorPlaneProject(SurfaceDelta, SurfaceComponent->GetUpVector());
-	DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (0 + LastHeight));
+	DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
+	//DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * LastHeight);
 
     FHitResult* hit = new FHitResult();
     FVector gravityDirection = -SurfaceComponent->GetUpVector();
-    FVector start = DynamicComponent->GetComponentLocation() - gravityDirection * 200;
+    FVector start = SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (LastHeight + 200);
     FVector end = start + gravityDirection * 400;
-    DrawDebugLine(GetWorld(), start, end, FColor::Orange, false, 0.1f);
+    //DrawDebugLine(GetWorld(), start, end, FColor::Orange, false, 0.1f);
     if (GetWorld()->LineTraceSingleByChannel(*hit, start, end, ECC_GameTraceChannel1)) {
         //gravityDirection = - hit->Normal;
-        if(bDebug){
+        /*if(bDebug){
             
             GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Distance: %f"), hit->Distance));
-        }
+        }*/
         
-        if(hit->Distance < 220){
-            float currentHeight = FVector::Distance(hit->ImpactPoint, SurfaceComponent->GetComponentLocation());
-            LastVerticalDelta = currentHeight - LastHeight;
-            LastHeight = currentHeight;
-            
-            VerticalSpeed = 0;
+        if(hit->Distance < 220){    
+			if (!bGrounded) {
+				bGrounded = true;
+				if(bDebug){
+					GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Landing")));
+				}
+			}
             //DesiredVerticalMovement = FVector::ZeroVector;
             DynamicComponent->SetWorldLocation(hit->ImpactPoint);
-            DesiredLocation = hit->ImpactPoint + hit->Normal * 30;
+			DesiredLocation = hit->ImpactPoint + hit->Normal * DistanceToFloor;
             DesiredRotation = FRotationMatrix::MakeFromZX(hit->Normal, SurfaceComponent->GetForwardVector()).Rotator();
+
+			float currentHeight = FVector::Distance(hit->ImpactPoint, SurfaceComponent->GetComponentLocation());
+			LastVerticalDelta = currentHeight - LastHeight;
+			LastHeight = currentHeight;
+			VerticalSpeed = LastVerticalDelta * 1.f;
         }else{
-            VerticalSpeed += Gravity * deltaTime * deltaTime;
-            LastHeight -= VerticalSpeed;
-            //DynamicComponent->SetWorldLocation(DynamicComponent->GetComponentLocation() - gravityDirection * LastHeight);
-            DesiredLocation = DynamicComponent->GetComponentLocation() - gravityDirection * 30;
+			if (bGrounded) {
+				bGrounded = false;
+				if (bDebug) {
+					GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("On air")));
+				}
+			}
+            VerticalSpeed -= Gravity * deltaTime * deltaTime;
+            LastHeight += VerticalSpeed;
+            DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * LastHeight);
+			DesiredLocation = DynamicComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * DistanceToFloor;
         }
         
         
@@ -233,14 +249,21 @@ void AAIMachine::SetHeight(float deltaTime){
 
 	}
 	else {
-        VerticalSpeed += Gravity * deltaTime * deltaTime;
-        LastHeight -= VerticalSpeed;
-        //DynamicComponent->SetWorldLocation(DynamicComponent->GetComponentLocation() - gravityDirection * LastHeight);
-        DesiredLocation = DynamicComponent->GetComponentLocation() - gravityDirection * 30;
+		if (bGrounded) {
+			bGrounded = false;
+			if (bDebug) {
+				GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("On air")));
+			}
+		}
+        VerticalSpeed -= Gravity * deltaTime * deltaTime;
+        LastHeight += VerticalSpeed;
+		DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (LastHeight ));
+		DesiredLocation = DynamicComponent->GetComponentLocation() -gravityDirection * DistanceToFloor;
         //DesiredVerticalMovement = gravityDirection * VerticalSpeed;
         
 		//VerticalSpeed += Gravity * deltaTime * deltaTime;
 		//DesiredVerticalMovement = gravityDirection * VerticalSpeed;
 	}
+	LastSurfaceLocation = Guide->GetSocketLocation("BoneSocket");
 }
 
