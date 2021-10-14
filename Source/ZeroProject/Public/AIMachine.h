@@ -12,16 +12,13 @@ class ZEROPROJECT_API AAIMachine : public AActor
 	GENERATED_BODY()
 	
 public:	
-	// Sets default values for this actor's properties
 	AAIMachine();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:	
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 protected:
@@ -42,8 +39,10 @@ protected:
         float Steering = 10.f;
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
-    UPROPERTY(EditAnywhere)
-        float DistanceToFloor = 20.f;
+	UPROPERTY(EditAnywhere)
+		float DistanceToFloor = 20.f;
+	UPROPERTY(EditAnywhere)
+		float TraceOffset = 100.f;
 	UPROPERTY(EditAnywhere)
 		float ContinuityThereshold = 20.f;
 	UPROPERTY(EditAnywhere)
