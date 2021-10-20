@@ -34,9 +34,11 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 1.0f;
     UPROPERTY(EditAnywhere)
+        float CoveredDistance = 0.0f;
+    UPROPERTY(EditAnywhere)
         float AccelerationRate = 100.0f;
     UPROPERTY(EditAnywhere)
-        float Steering = 10.f;
+        float Steering = 0.5f;
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
 	UPROPERTY(EditAnywhere)

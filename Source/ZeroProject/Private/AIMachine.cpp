@@ -54,6 +54,7 @@ void AAIMachine::Tick(float DeltaTime)
 
 		float curveSpeedStabilizer = FMath::Sin(deltaAngle) * DeltaX;
 		float deltaSpeed = AccelerationRate * DeltaTime * DeltaTime;
+        
 		if (PreSpeed < MaxSpeed) {
 			PreSpeed += deltaSpeed;
 		}
@@ -63,10 +64,15 @@ void AAIMachine::Tick(float DeltaTime)
 		if (FMath::Abs(PreSpeed - MaxSpeed) < deltaSpeed) {
 			PreSpeed = MaxSpeed;
 		}
-		Speed = PreSpeed + CurveFactor * curveSpeedStabilizer * DeltaTime - FMath::Clamp(VerticalSpeed, 0.f, VerticalSpeed) * DeltaTime;
+        //PreSpeed = MaxSpeed;
+        
+		Speed = (PreSpeed + CurveFactor * curveSpeedStabilizer - FMath::Clamp(VerticalSpeed, 0.f, VerticalSpeed)) * DeltaTime;
+        
+        //Speed = MaxSpeed * DeltaTime;
 
 		SetHeight(DeltaTime);
         FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
+        CoveredDistance += (LastSurfaceLocation - Guide->GetSocketLocation("BoneSocket")).Size();
 		FHitResult* hit = new FHitResult();
 		VisibleComponent->MoveComponent(deltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
@@ -106,17 +112,16 @@ void AAIMachine::Tick(float DeltaTime)
 				float rr = FMath::RandRange(-1.f, 1.f);
 				DesiredDeltaX = 300 * FMath::Sign(rr);
 		}
-		else if(FMath::Abs(deltaAngle) > SmartDeltaAngleTheresholdHigh)
-        {
-            if(!bCanSetNewDesiredDeltaX) {
+		else if(FMath::Abs(deltaAngle) > SmartDeltaAngleTheresholdHigh &&
+                !bCanSetNewDesiredDeltaX) {
 				bCanSetNewDesiredDeltaX = true;
-			}
 			if (deltaAngle * DeltaX < 0) {
-				DesiredDeltaX += deltaAngle * Steering * DeltaTime;
+				//DesiredDeltaX += deltaAngle * Steering * DeltaTime;
+                DesiredDeltaX = DeltaX + 300/2 * FMath::Sign(deltaAngle);
 			}
 		}
 
-        DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * 0.5f);
+        DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * Steering);
 		LastDirection = SurfaceComponent->GetForwardVector();
 	}
 	else {
@@ -128,6 +133,7 @@ void AAIMachine::Tick(float DeltaTime)
 		VisibleComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 		SetHeight(DeltaTime);
 	}
+    LastSurfaceLocation = Guide->GetSocketLocation("BoneSocket");
 }
 
 void AAIMachine::StartRace() {
@@ -207,6 +213,5 @@ void AAIMachine::SetHeight(float deltaTime){
 		DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (LastHeight ));
 		DesiredLocation = DynamicComponent->GetComponentLocation() -gravityDirection * DistanceToFloor;
 	}
-	LastSurfaceLocation = Guide->GetSocketLocation("BoneSocket");
 }
 
