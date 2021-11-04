@@ -1,5 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 #include "KinematicMachine.h"
+#include "AIMachine.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "DrawDebugHelpers.h"
@@ -96,23 +97,37 @@ void AKinematicMachine::Tick(float DeltaTime)
 
 	Speed = FMath::Clamp(Speed, 0.f, MaxSpeed);
 
-	FVector deltaLocation = ArrowComponent->GetForwardVector() * (Speed + SpeedModifier);
+	DeltaLocation = ArrowComponent->GetForwardVector() * (Speed + SpeedModifier) * DeltaTime * 10 + HitDelta * DeltaTime;
 
+    HitDelta = FMath::Lerp(HitDelta, FVector::ZeroVector, DeltaTime * HitDecceleration);
+    
 	FHitResult* hit = new FHitResult();
-	KinematicComponent->MoveComponent(deltaLocation, FQuat::Identity, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
-	if (hit->bBlockingHit && hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
-		float impactAngle = FMath::RadiansToDegrees(acosf(FVector::DotProduct(ArrowComponent->GetForwardVector(), hit->Normal)));
-        float decimationFactor = 1 - (impactAngle - 90) / 90;
-        Speed *= decimationFactor;
-        SpeedModifier *= decimationFactor;
-		FVector deflectedLocation = hit->ImpactPoint + hit->Normal * 12;
-		KinematicComponent->SetWorldLocation(deflectedLocation);
-		FVector selectedNormal = -hit->Normal;
-		if (FVector::DotProduct(hit->Normal, ArrowComponent->GetRightVector()) > 0) {
-			selectedNormal *= -1;
-		}
-		FRotator deflectedRotation = FRotationMatrix::MakeFromZY(ArrowComponent->GetUpVector(), selectedNormal).Rotator();
-		ArrowComponent->SetWorldRotation(deflectedRotation);
+	KinematicComponent->MoveComponent(DeltaLocation, FQuat::Identity, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+    if (hit->bBlockingHit) {
+        //GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("internal bounce")));
+        float decimationFactor = 0.f; //FVector::DotProduct(DeltaLocation.GetSafeNormal(), hit->Normal);
+        float hitMagnitude = 0.f;
+        if(hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
+            decimationFactor = FVector::DotProduct(DeltaLocation.GetSafeNormal(), hit->Normal);
+            hitMagnitude = -FVector::DotProduct(DeltaLocation, hit->Normal);
+        }else if(hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldDynamic){
+            AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
+            FVector deltaDifference = DeltaLocation - otherMachine->RealDeltaLocation;
+            //otherMachine->HitByPlayer(-HitDelta, DeltaTime);
+            float tempDot = FVector::DotProduct(deltaDifference, hit->Normal);
+            //if(tempDot < 0){
+                decimationFactor = FVector::DotProduct(deltaDifference / (MaxSpeed * DeltaTime * 10), hit->Normal);
+                hitMagnitude = -tempDot;
+            otherMachine->Bounce(-hit->Normal, hitMagnitude, true);
+            //}
+        }
+        
+        Bounce(hit->Normal, hitMagnitude, false);
+        //HitDelta = hit->Normal * hitMagnitude * HitBounceScaler;
+        //Speed += MaxSpeed * decimationFactor;
+        //SpeedModifier += BoostSpeed *  decimationFactor;
+        //FVector deflectedLocation = hit->Normal * 2.5f;
+        //KinematicComponent->AddWorldOffset(deflectedLocation);
 	}
 	Raycast(DeltaTime);
 	float speed = FVector::Distance(KinematicComponent->GetComponentLocation(), LastMachineLocation) / DeltaTime;//cm / seg
@@ -124,8 +139,13 @@ void AKinematicMachine::Tick(float DeltaTime)
 	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
 	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/22 + 60, DeltaTime * 5), 100.f, 180.f);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
-    SpeedModifier -= DeltaTime * 10;
+    SpeedModifier -= DeltaTime * BoostDecceleration;
     SpeedModifier = FMath::Clamp(SpeedModifier, 0.f, BoostSpeed);
+    if(bExternalBlock && FVector::Distance(LastHitLocation, VisibleComponent->GetComponentLocation()) > HitDistanceThereshold){
+        GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("exit hit")));
+        bExternalBlock = false;
+    }
+    bBouncing = false;
 }
 
 void AKinematicMachine::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -371,5 +391,46 @@ void AKinematicMachine::ResetDrift() {
 
 void AKinematicMachine::ResetExitDrift() {
 	bCanExitDrift = true;
+}
+
+void AKinematicMachine::HitByMachineSide(FVector hitNormal, FVector otherDeltaLocation, FVector lastHitLocation, float deltaTime) {
+    bExternalBlock = true;
+    
+    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("external bounce")));
+    
+    FVector deltaDifference = otherDeltaLocation - DeltaLocation;
+    //float decimationFactor = FVector::DotProduct(deltaDifference / (MaxSpeed * deltaTime * 10), hitNormal);
+    float hitMagnitude = 0.f;
+    
+    if(FVector::DotProduct(deltaDifference, hitNormal) > 0){
+    
+        hitMagnitude = FVector::DotProduct(deltaDifference, hitNormal);
+        
+    }
+    
+    //HitDelta = hitNormal * hitMagnitude * HitBounceScaler;
+    //Speed += MaxSpeed * decimationFactor;
+    //SpeedModifier += BoostSpeed *  decimationFactor;
+    //FVector deflectedLocation = -hitNormal * 2.5f;
+    //KinematicComponent->AddWorldOffset(deflectedLocation);
+    
+    LastHitLocation = lastHitLocation;
+}
+void AKinematicMachine::HitByMachineForward(float forwardDot) {
+}
+
+void AKinematicMachine::Bounce(FVector hitDirection, float hitMagnitude, bool external) {
+    if(!bBouncing){
+        if(external){
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Kinematic: external")));
+        }else{
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Kinematic: internal")));
+        }
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("K magnitude: %f"), hitMagnitude));
+        bBouncing = true;
+        HitDelta = hitDirection * hitMagnitude * HitBounceScaler;
+        FVector deflectedLocation = hitDirection * 2.5f;
+        KinematicComponent->AddWorldOffset(deflectedLocation);
+    }
 }
 

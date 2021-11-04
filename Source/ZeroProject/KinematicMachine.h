@@ -47,11 +47,17 @@ protected:
     UPROPERTY(EditAnywhere)
         float BoostSpeed = 5000.0f;
 	UPROPERTY(EditAnywhere)
-		float BoostDecceleration = 10.0f;
+		float BoostDecceleration = 40.0f;
 	UPROPERTY(EditAnywhere)
 		float AccelerationRate = 5000.0f;
 	UPROPERTY(EditAnywhere)
 		float DeccelerationRate = 5000.0f;
+    UPROPERTY(EditAnywhere)
+        float HitBounceScaler = 50.f;
+    UPROPERTY(EditAnywhere)
+        float HitDecceleration = 10.f;
+    UPROPERTY(EditAnywhere)
+        float HitDistanceThereshold = 2.f;
 	UPROPERTY(EditAnywhere)
 		float Gravity = 980.f;
 	UPROPERTY(EditAnywhere)
@@ -90,6 +96,8 @@ protected:
 	FVector MovementInput;
 	FVector RawMovementInput;
 	FVector LastMachineLocation;
+    FVector HitDelta;
+    FVector LastHitLocation;
 	bool bAccelerating = false;
 	bool bBraking = false;
 	bool bPendingAcceleration = false;
@@ -98,6 +106,8 @@ protected:
 	bool bPendingDrift = false;
 	bool bCanDrift = true;
 	bool bCanExitDrift = false;
+    bool bExternalBlock = true;
+    bool bBouncing = false;
 	FTimerHandle TimerHandle;
 	FTimerHandle EDTimerHandle;
 	FTimerDelegate TimerDel;
@@ -125,4 +135,13 @@ protected:
 		void ResetDrift();
 	UFUNCTION()
 		void ResetExitDrift();
+    
+public:
+    
+    FVector DeltaLocation;
+    
+    void HitByMachineSide(FVector hitNormal, FVector otherDeltaLocation, FVector lastHitLocation,  float deltaTime);
+    void HitByMachineForward(float forwardDot);
+    
+    void Bounce(FVector hitDirection, float hitMagnitude, bool external);
 };

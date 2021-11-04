@@ -43,6 +43,7 @@ void AAIMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	if (bCanRace) {
+        RealDeltaLocation = Guide->GetSocketLocation("BoneSocket") - LastSurfaceLocation;
 		SurfaceComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + SurfaceComponent->GetRightVector() * DeltaX);
 		SurfaceComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
 
@@ -66,43 +67,117 @@ void AAIMachine::Tick(float DeltaTime)
 		}
         //PreSpeed = MaxSpeed;
         
-		Speed = (PreSpeed + CurveFactor * curveSpeedStabilizer - FMath::Clamp(VerticalSpeed, 0.f, VerticalSpeed)) * DeltaTime;
+		Speed = (PreSpeed + CurveFactor * curveSpeedStabilizer - FMath::Clamp(VerticalSpeed, 0.f, VerticalSpeed)
+                 + FVector::DotProduct(SurfaceComponent->GetForwardVector(), HitDelta) * 0.1f + SpeedModifier) * DeltaTime;
         
         //Speed = MaxSpeed * DeltaTime;
 
 		SetHeight(DeltaTime);
-        FVector deltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
-        CoveredDistance += (LastSurfaceLocation - Guide->GetSocketLocation("BoneSocket")).Size();
+        HitDelta = FMath::Lerp(HitDelta, FVector::ZeroVector, DeltaTime * HitDecceleration);
+        //DesiredLocation += HitDelta;
+        FVector desiredDeltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
+        float normalizer = CurveLength/AnimationTime;
+        
+        CoveredDistance += Speed / normalizer * 60.f;
 		FHitResult* hit = new FHitResult();
-		VisibleComponent->MoveComponent(deltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+		VisibleComponent->MoveComponent(desiredDeltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
+            
 			if (hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldStatic) {
-				SurfaceComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation()
-                                                   - SurfaceComponent->GetRightVector() * 10 * FMath::Sign(DeltaX));
-				VisibleComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
-                DeltaX -= 10 * FMath::Sign(DeltaX);
+                
+                //HitDelta += hit->Normal * HitBounceScaler;
+                float hitOffset = FVector::DotProduct(hit->Normal, SurfaceComponent->GetForwardVector());
+                SurfaceComponent->AddWorldOffset(SurfaceComponent->GetRightVector() * hitOffset * 100.f * FMath::Sign(DeltaX));
+                FVector offset = DesiredLocation + SurfaceComponent->GetRightVector() * hitOffset * 100.f * FMath::Sign(DeltaX) - VisibleComponent->GetComponentLocation();
+                VisibleComponent->AddWorldOffset(offset);
+                DeltaX += hitOffset * 100.f * FMath::Sign(DeltaX);
+                
                 float newDesiredDelta = FMath::RandRange(0.f, 0.95f);
                 DesiredDeltaX = DeltaX * newDesiredDelta;
-				PreSpeed *= 0.9f;
+				//PreSpeed *= 0.9f;
+                //PreSpeed += FVector::DotProduct(SurfaceComponent->GetForwardVector(), HitDelta) * DeltaTime;
+                
+                Bounce(hit->Normal, 6.f, false);
 			}
-			else {
+            else if(hit->GetComponent()->GetCollisionObjectType() == ECollisionChannel::ECC_WorldDynamic) {
+                
+                /*float decimationFactor = 0.f;
+                float hitMagnitude = 0.f;
+                
+                AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
+                AKinematicMachine* playerMachine = Cast<AKinematicMachine>(hit->GetActor());
+                
+                if (otherMachine != NULL) {
+                    FVector deltaDifference = RealDeltaLocation - otherMachine->RealDeltaLocation;
+                    decimationFactor = FVector::DotProduct(deltaDifference / RealDeltaLocation.Size(), hit->Normal);
+                    hitMagnitude = -FVector::DotProduct(deltaDifference, hit->Normal);
+                    
+                    //HitDelta = hit->Normal * hitMagnitude * HitBounceScaler;
+                    //PreSpeed += MaxSpeed * decimationFactor;
+                }else if(playerMachine != NULL) {
+                    FVector deltaDifference = RealDeltaLocation - playerMachine->DeltaLocation;
+                    decimationFactor = FVector::DotProduct(deltaDifference / RealDeltaLocation.Size(), hit->Normal);
+                    hitMagnitude = -FVector::DotProduct(deltaDifference, hit->Normal);
+                    
+                    //HitDelta = hit->Normal * hitMagnitude * HitBounceScaler;
+                    //PreSpeed += MaxSpeed * decimationFactor;
+                }*/
+                
 				AAIMachine* otherMachine = Cast<AAIMachine>(hit->GetActor());
 				AKinematicMachine* playerMachine = Cast<AKinematicMachine>(hit->GetActor());
 				if (otherMachine != NULL) {
+                    
+                    SurfaceComponent->AddWorldOffset(-SurfaceComponent->GetRightVector() * 2.5f * FMath::Sign(DeltaX));
+                    FVector offset = DesiredLocation - SurfaceComponent->GetRightVector() * 2.5f * FMath::Sign(DeltaX) - VisibleComponent->GetComponentLocation();
+                    VisibleComponent->AddWorldOffset(offset);
+                    DeltaX -= 2.5f * FMath::Sign(DeltaX);
+                    
+                    float newDesiredDelta = FMath::RandRange(0.f, 0.95f);
+                    DesiredDeltaX = DeltaX * newDesiredDelta;
+                    
                     float forwardDot = FVector::DotProduct(hit->Normal, SurfaceComponent->GetForwardVector());
                     float rightDot = FVector::DotProduct(hit->ImpactNormal, SurfaceComponent->GetRightVector());
-                    if(FMath::Abs(forwardDot) > FMath::Abs(rightDot)){
+                    HitDelta += hit->Normal * HitBounceScaler;
+                    HitByMachine2(forwardDot);
+                    otherMachine->HitByMachine2(-forwardDot);
+                    HitByMachine(rightDot);
+                    otherMachine->HitByMachine(-rightDot);
+                    /*if(FMath::Abs(forwardDot) > FMath::Abs(rightDot)){
 						HitByMachine2(forwardDot);
 						otherMachine->HitByMachine2(-forwardDot);
                     }else{
 						HitByMachine(rightDot);                        
                         otherMachine->HitByMachine(-rightDot);
-                    }
+                    }*/
+                    /*FVector deltaDifference = RealDeltaLocation - otherMachine->RealDeltaLocation;
+                    float hitMagnitude = FVector::DotProduct(deltaDifference, hit->Normal);
+                    Bounce(hit->Normal, hitMagnitude, false);
+                    otherMachine->Bounce(-hit->Normal, hitMagnitude, true);*/
 				}
 				else if (playerMachine != NULL) {
-					//playerMachine
+                    /*float forwardDot = FVector::DotProduct(hit->Normal, SurfaceComponent->GetForwardVector());
+                    float rightDot = FVector::DotProduct(hit->ImpactNormal, SurfaceComponent->GetRightVector());
+                    HitDelta += hit->Normal * HitBounceScaler;
+                    if(FMath::Abs(forwardDot) > FMath::Abs(rightDot)){
+                        HitByMachine2(forwardDot);
+                        //playerMachine->HitByMachineSide(-hit->Normal, RealDeltaLocation, hit->ImpactPoint, DeltaTime);
+                    }else{
+                        HitByMachine(rightDot);
+                        //playerMachine->HitByMachineSide(-hit->Normal, RealDeltaLocation, hit->ImpactPoint, DeltaTime);
+                    }*/
+                    
+                    SurfaceComponent->AddWorldOffset(-SurfaceComponent->GetRightVector() * 2.5f * FMath::Sign(DeltaX));
+                    FVector offset = DesiredLocation - SurfaceComponent->GetRightVector() * 2.5f * FMath::Sign(DeltaX) - VisibleComponent->GetComponentLocation();
+                    VisibleComponent->AddWorldOffset(offset);
+                    DeltaX -= 2.5f * FMath::Sign(DeltaX);
+                    
+                    FVector deltaDifference = playerMachine->DeltaLocation - RealDeltaLocation;
+                    float hitMagnitude = FVector::DotProduct(deltaDifference, hit->Normal);
+                    Bounce(hit->Normal, hitMagnitude, false);
+                    playerMachine->Bounce(-hit->Normal, hitMagnitude, true);
 				}
-                PreSpeed *= 0.975f;
+                //PreSpeed *= 0.975f;
+                //PreSpeed += FVector::DotProduct(SurfaceComponent->GetForwardVector(), HitDelta) * DeltaTime;
 			}
 		}
 
@@ -111,17 +186,21 @@ void AAIMachine::Tick(float DeltaTime)
 				bCanSetNewDesiredDeltaX = false;
 				float rr = FMath::RandRange(-1.f, 1.f);
 				DesiredDeltaX = 300 * FMath::Sign(rr);
+            float randomNormalized = FMath::RandRange(0.f, 1.f);
+            if(randomNormalized < BoostChance){
+                SpeedModifier = BoostSpeed;
+            }
 		}
 		else if(FMath::Abs(deltaAngle) > SmartDeltaAngleTheresholdHigh &&
                 !bCanSetNewDesiredDeltaX) {
 				bCanSetNewDesiredDeltaX = true;
 			if (deltaAngle * DeltaX < 0) {
-				//DesiredDeltaX += deltaAngle * Steering * DeltaTime;
                 DesiredDeltaX = DeltaX + 300/2 * FMath::Sign(deltaAngle);
 			}
 		}
 
-        DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * Steering);
+        DeltaX = FMath::Lerp(DeltaX, DesiredDeltaX, DeltaTime * Steering) + FVector::DotProduct(SurfaceComponent->GetRightVector(), HitDelta) * DeltaTime;
+        //+ HitDelta.ProjectOnToNormal(SurfaceComponent->GetRightVector()).Size() * DeltaTime;
 		LastDirection = SurfaceComponent->GetForwardVector();
 	}
 	else {
@@ -133,18 +212,14 @@ void AAIMachine::Tick(float DeltaTime)
 		VisibleComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
 		SetHeight(DeltaTime);
 	}
+    SpeedModifier -= DeltaTime * BoostDecceleration;
+    SpeedModifier = FMath::Clamp(SpeedModifier, 0.f, BoostSpeed);
     LastSurfaceLocation = Guide->GetSocketLocation("BoneSocket");
+    bBouncing = false;
 }
 
 void AAIMachine::StartRace() {
 	bCanRace = true;
-}
-
-void AAIMachine::HitByMachine(float rightDot) {
-	DesiredDeltaX = DeltaX + 100 * FMath::Sign(rightDot);
-}
-void AAIMachine::HitByMachine2(float forwardDot) {
-	PreSpeed *= 1 + 0.01f * FMath::Sign(forwardDot);
 }
 
 void AAIMachine::SetHeight(float deltaTime){
@@ -165,7 +240,7 @@ void AAIMachine::SetHeight(float deltaTime){
     FVector end = SurfaceComponent->GetComponentLocation() + gravityDirection * TraceOffset;
     //DrawDebugLine(GetWorld(), start, end, FColor::Orange, false, 0.f);
 
-    if (GetWorld()->LineTraceMultiByChannel(outHits, start, end, ECC_GameTraceChannel1)) {
+    if (GetWorld()->LineTraceMultiByChannel(outHits, start, end, ECC_GameTraceChannel2)) {
         if (outHits.Num() > 1) {
 			SurfaceComponent->SetWorldLocation(outHits[1].ImpactPoint);
 		}
@@ -181,7 +256,7 @@ void AAIMachine::SetHeight(float deltaTime){
 				}
 			}
             DynamicComponent->SetWorldLocation(outHits[0].ImpactPoint);
-			DesiredLocation = outHits[0].ImpactPoint + outHits[0].Normal * DistanceToFloor;
+            DesiredLocation = outHits[0].ImpactPoint + outHits[0].Normal * DistanceToFloor; // + HitDelta * deltaTime;
             DesiredRotation = FRotationMatrix::MakeFromZX(outHits[0].Normal, SurfaceComponent->GetForwardVector()).Rotator();
 
 			float currentHeight = FVector::Distance(outHits[0].ImpactPoint, SurfaceComponent->GetComponentLocation());
@@ -198,7 +273,7 @@ void AAIMachine::SetHeight(float deltaTime){
             VerticalSpeed -= Gravity * deltaTime * deltaTime;
             LastHeight += VerticalSpeed;
             DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * LastHeight);
-			DesiredLocation = DynamicComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * DistanceToFloor;
+            DesiredLocation = DynamicComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * DistanceToFloor; // + HitDelta * deltaTime;
         }
      }
 	else {
@@ -211,7 +286,41 @@ void AAIMachine::SetHeight(float deltaTime){
         VerticalSpeed -= Gravity * deltaTime * deltaTime;
         LastHeight += VerticalSpeed;
 		DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * (LastHeight ));
-		DesiredLocation = DynamicComponent->GetComponentLocation() -gravityDirection * DistanceToFloor;
+        DesiredLocation = DynamicComponent->GetComponentLocation() -gravityDirection * DistanceToFloor; // + HitDelta * deltaTime;
 	}
+}
+
+void AAIMachine::HitByMachine(float rightDot) {
+    DesiredDeltaX = DeltaX + 100 * FMath::Sign(rightDot);
+}
+void AAIMachine::HitByMachine2(float forwardDot) {
+    PreSpeed *= 1 + 0.01f * FMath::Sign(forwardDot);
+}
+void AAIMachine::HitByPlayer(FVector hitDelta, float deltaTime) {
+    //HitDelta += hitDelta;
+    //PreSpeed += FVector::DotProduct(SurfaceComponent->GetForwardVector(), HitDelta) * deltaTime;
+    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("hit by player")));
+}
+
+void AAIMachine::Bounce(FVector hitDirection, float hitMagnitude, bool external) {
+    if(!bBouncing){
+        if(bDebug){
+            if(external){
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("AI: external")));
+            }else{
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("AI: internal")));
+            }
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("AI magnitude: %f"), hitMagnitude));
+        }
+        bBouncing = true;
+        HitDelta = hitDirection * hitMagnitude * HitBounceScaler;
+        
+        //int sign = FMath::Sign(FVector::DotProduct(hitDirection, SurfaceComponent->GetRightVector()));
+        
+        //SurfaceComponent->AddWorldOffset(SurfaceComponent->GetRightVector() * 20.5f * sign);
+        //VisibleComponent->AddWorldOffset(SurfaceComponent->GetRightVector() * 20.5f * sign);
+        //DeltaX += 20.5f * FMath::Sign(DeltaX);
+        //DesiredDeltaX = DeltaX;
+    }
 }
 

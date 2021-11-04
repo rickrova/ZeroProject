@@ -32,13 +32,25 @@ protected:
         USkeletalMeshComponent* Guide;
 
 	UPROPERTY(EditAnywhere)
-		float MaxSpeed = 1.0f;
+		float MaxSpeed = 280.f;
     UPROPERTY(EditAnywhere)
-        float CoveredDistance = 0.0f;
+        float AnimationTime = 0.f;
+    UPROPERTY(EditAnywhere)
+        float CurveLength = 0.f;
+    UPROPERTY(EditAnywhere)
+        float BoostSpeed = 140.f;
+    UPROPERTY(EditAnywhere)
+        float BoostChance = 0.f;
+    UPROPERTY(EditAnywhere)
+        float BoostDecceleration = 40.0f;
     UPROPERTY(EditAnywhere)
         float AccelerationRate = 100.0f;
     UPROPERTY(EditAnywhere)
         float Steering = 0.5f;
+    UPROPERTY(EditAnywhere)
+        float HitBounceScaler = 50.f;
+    UPROPERTY(EditAnywhere)
+        float HitDecceleration = 10.f;
     UPROPERTY(EditAnywhere)
         float DeltaX = 0.f;
 	UPROPERTY(EditAnywhere)
@@ -62,16 +74,19 @@ protected:
 		float Speed = 0.f;
 
     int Gravity = 9800;
+    float SpeedModifier = 0.f;
     float VerticalSpeed = 0;
     float LastVerticalDelta;
     float LastHeight;
 	bool bCanRace = false;
 	bool bCanSetNewDesiredDeltaX = false;
     bool bGrounded = true;
+    bool bBouncing = false;
     FVector LastDirection;
 	FVector LastSurfaceLocation;
 	FVector DesiredLocation;
 	FRotator DesiredRotation;
+    FVector HitDelta;
 	FTimerHandle TimerHandle;
 	FTimerDelegate TimerDelegate;
 
@@ -83,9 +98,15 @@ protected:
 public:
 	UPROPERTY(BlueprintReadWrite)
 		float PreSpeed = 0.f;
+    UPROPERTY(BlueprintReadOnly)
+        float CoveredDistance = 0.0f;
     
     float DesiredDeltaX = 0;
+    FVector RealDeltaLocation;
     
     void HitByMachine(float rightDot);
 	void HitByMachine2(float forwardDot);
+    void HitByPlayer(FVector hitDelta, float deltaTime);
+    
+    void Bounce(FVector hitDirection, float hitMagnitude, bool external);
 };
