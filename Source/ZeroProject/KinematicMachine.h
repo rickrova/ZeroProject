@@ -24,7 +24,7 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 protected:
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		class USphereComponent* KinematicComponent;
 
 	UPROPERTY(VisibleAnywhere)

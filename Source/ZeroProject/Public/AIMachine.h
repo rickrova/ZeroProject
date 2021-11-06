@@ -98,7 +98,7 @@ protected:
 public:
 	UPROPERTY(BlueprintReadWrite)
 		float PreSpeed = 0.f;
-    UPROPERTY(BlueprintReadOnly)
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
         float CoveredDistance = 0.0f;
     
     float DesiredDeltaX = 0;
