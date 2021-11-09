@@ -68,7 +68,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		float StartPosition = 0.f;
     UPROPERTY(EditAnywhere)
-    bool bDebug;
+        bool bDebug;
+    
+    UPROPERTY(BlueprintReadWrite)
+        bool bCanRace = false;
 
 	UPROPERTY(BlueprintReadOnly)
 		float Speed = 0.f;
@@ -78,7 +81,6 @@ protected:
     float VerticalSpeed = 0;
     float LastVerticalDelta;
     float LastHeight;
-	bool bCanRace = false;
 	bool bCanSetNewDesiredDeltaX = false;
     bool bGrounded = true;
     bool bBouncing = false;

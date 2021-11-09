@@ -328,7 +328,7 @@ void AKinematicMachine::MoveForward(float AxisValue)
 
 void AKinematicMachine::Accelerate()
 {
-	if (!bBraking) {
+	if (!bBraking && bCanAccelerate) {
 		bAccelerating = true;
 	}
 	else {
@@ -396,7 +396,7 @@ void AKinematicMachine::ResetExitDrift() {
 void AKinematicMachine::HitByMachineSide(FVector hitNormal, FVector otherDeltaLocation, FVector lastHitLocation, float deltaTime) {
     bExternalBlock = true;
     
-    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("external bounce")));
+    //GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("external bounce")));
     
     FVector deltaDifference = otherDeltaLocation - DeltaLocation;
     //float decimationFactor = FVector::DotProduct(deltaDifference / (MaxSpeed * deltaTime * 10), hitNormal);
@@ -426,7 +426,7 @@ void AKinematicMachine::Bounce(FVector hitDirection, float hitMagnitude, bool ex
         }else{
             GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Kinematic: internal")));
         }
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("K magnitude: %f"), hitMagnitude));
+        //GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("K magnitude: %f"), hitMagnitude));
         bBouncing = true;
         HitDelta = hitDirection * hitMagnitude * HitBounceScaler;
         FVector deflectedLocation = hitDirection * 2.5f;

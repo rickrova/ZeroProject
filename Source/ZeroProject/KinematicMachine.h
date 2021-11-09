@@ -78,6 +78,10 @@ protected:
 		float RaySetVerticalOfset = 200;
 	UPROPERTY(EditAnywhere)
 		float RaySetDistance = 500;
+    
+    UPROPERTY(BlueprintReadWrite)
+        bool bCanAccelerate = false;
+    
 
 	FVector GravityDirection = -FVector::UpVector;
 

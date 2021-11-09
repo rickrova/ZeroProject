@@ -26,8 +26,8 @@ void AAIMachine::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TimerDelegate.BindUFunction(this, FName("StartRace"));
-	GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, 3.f, false, 3.f);
+	//TimerDelegate.BindUFunction(this, FName("StartRace"));
+	//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, 3.f, false, 3.f);
 
 	DesiredDeltaX = DeltaX;
     CoveredDistance = StartPosition * CurveLength / AnimationTime;
@@ -67,6 +67,7 @@ void AAIMachine::Tick(float DeltaTime)
 			PreSpeed = MaxSpeed;
 		}
         //PreSpeed = MaxSpeed;
+        CoveredDistance += Speed; // / normalizer * 60.f;
         
 		Speed = (PreSpeed + CurveFactor * curveSpeedStabilizer - FMath::Clamp(VerticalSpeed, 0.f, VerticalSpeed)
                  + FVector::DotProduct(SurfaceComponent->GetForwardVector(), HitDelta) * 0.1f + SpeedModifier) * DeltaTime;
@@ -79,7 +80,6 @@ void AAIMachine::Tick(float DeltaTime)
         FVector desiredDeltaLocation = DesiredLocation - VisibleComponent->GetComponentLocation();
         float normalizer = CurveLength/AnimationTime;
         
-        CoveredDistance += Speed; // / normalizer * 60.f;
 		FHitResult* hit = new FHitResult();
 		VisibleComponent->MoveComponent(desiredDeltaLocation, DesiredRotation, true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
