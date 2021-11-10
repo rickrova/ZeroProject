@@ -133,6 +133,8 @@ protected:
 
 	UFUNCTION(BlueprintCallable)
 		void Boost();
+	UFUNCTION(BlueprintCallable)
+		void StartRace();
 	UFUNCTION()
 		void ExitDrift();
 	UFUNCTION()

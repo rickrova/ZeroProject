@@ -434,3 +434,11 @@ void AKinematicMachine::Bounce(FVector hitDirection, float hitMagnitude, bool ex
     }
 }
 
+void AKinematicMachine::StartRace() {
+	if (bPendingAcceleration) {
+		bCanAccelerate = true;
+		bPendingAcceleration = false;
+		Accelerate();
+	}
+}
+
