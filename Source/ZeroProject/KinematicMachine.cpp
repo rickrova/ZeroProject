@@ -131,11 +131,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 	}
 	Raycast(DeltaTime);
 	float speed = FVector::Distance(KinematicComponent->GetComponentLocation(), LastMachineLocation) / DeltaTime;//cm / seg
-	speed *= 60; //cm / min
-	speed *= 60; //cm / h
-	speed /= 100; // m / h
-	speed /= 1000; // km / k
-	speed *= 10; //scale adjustments
+	speed *= 0.36f; //constant to km/h
 	SpeedKH = speed;
 	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
 	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/22 + 60, DeltaTime * 5), 100.f, 180.f);
@@ -371,7 +367,10 @@ void AKinematicMachine::LiftBrake() {
 }
 
 void AKinematicMachine::Boost(){
-    SpeedModifier = BoostSpeed;
+	if (Energy > BoostConsumption) {
+		Energy -= BoostConsumption;
+		SpeedModifier = BoostSpeed;
+	}
 }
 
 void AKinematicMachine::ExitDrift() {
@@ -429,6 +428,8 @@ void AKinematicMachine::Bounce(FVector hitDirection, float hitMagnitude, bool ex
         }
         //GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("K magnitude: %f"), hitMagnitude));
         bBouncing = true;
+		Energy -= ShieldDamage;
+		CheckDepletion();
         HitDelta = hitDirection * hitMagnitude * HitBounceScaler;
         FVector deflectedLocation = hitDirection * 2.5f;
         KinematicComponent->AddWorldOffset(deflectedLocation);
@@ -440,6 +441,13 @@ void AKinematicMachine::StartRace() {
 	if (bPendingAcceleration) {
 		bPendingAcceleration = false;
 		Accelerate();
+	}
+}
+
+void AKinematicMachine::CheckDepletion() {
+	if (Energy <= 0) {
+		bCanAccelerate = false;
+		bAccelerating = false;
 	}
 }
 

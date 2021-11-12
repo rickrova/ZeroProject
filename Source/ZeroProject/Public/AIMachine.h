@@ -34,6 +34,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 280.f;
     UPROPERTY(EditAnywhere)
+        float AccelerationRate = 100.0f;
+    UPROPERTY(EditAnywhere)
         float AnimationTime = 0.f;
     UPROPERTY(EditAnywhere)
         float CurveLength = 0.f;
@@ -44,9 +46,13 @@ protected:
     UPROPERTY(EditAnywhere)
         float BoostDecceleration = 40.0f;
     UPROPERTY(EditAnywhere)
-        float AccelerationRate = 100.0f;
+        float BoostConsumption = 0.1f;
     UPROPERTY(EditAnywhere)
         float Steering = 0.5f;
+    UPROPERTY(EditAnywhere)
+        float ShieldDamage = 0.1f;
+    UPROPERTY(EditAnywhere)
+        float Energy = 1.f;
     UPROPERTY(EditAnywhere)
         float HitBounceScaler = 50.f;
     UPROPERTY(EditAnywhere)
@@ -109,6 +115,7 @@ public:
     void HitByMachine(float rightDot);
 	void HitByMachine2(float forwardDot);
     void HitByPlayer(FVector hitDelta, float deltaTime);
-    
+
     void Bounce(FVector hitDirection, float hitMagnitude, bool external);
+    void CheckDepletion();
 };

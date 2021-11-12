@@ -49,6 +49,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float BoostDecceleration = 40.0f;
 	UPROPERTY(EditAnywhere)
+		float BoostConsumption = 0.1f;
+	UPROPERTY(EditAnywhere)
 		float AccelerationRate = 5000.0f;
 	UPROPERTY(EditAnywhere)
 		float DeccelerationRate = 5000.0f;
@@ -66,6 +68,10 @@ protected:
 		float MinSteering = 100.0f;
 	UPROPERTY(EditAnywhere)
 		float MaxSteering = 150.0f;
+	UPROPERTY(EditAnywhere)
+		float ShieldDamage = 0.1f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		float Energy = 1.f;
 	UPROPERTY(EditAnywhere)
 		float DriftThereshold = 3.f;
 	UPROPERTY(EditAnywhere)
@@ -152,4 +158,5 @@ public:
     void HitByMachineForward(float forwardDot);
     
     void Bounce(FVector hitDirection, float hitMagnitude, bool external);
+	void CheckDepletion();
 };

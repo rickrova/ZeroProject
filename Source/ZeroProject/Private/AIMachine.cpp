@@ -188,7 +188,8 @@ void AAIMachine::Tick(float DeltaTime)
 				float rr = FMath::RandRange(-1.f, 1.f);
 				DesiredDeltaX = 300 * FMath::Sign(rr);
             float randomNormalized = FMath::RandRange(0.f, 1.f);
-            if(randomNormalized < BoostChance){
+            if(randomNormalized < BoostChance * Energy && Energy > BoostConsumption){
+                Energy -= BoostConsumption;
                 SpeedModifier = BoostSpeed;
             }
 		}
@@ -293,14 +294,20 @@ void AAIMachine::SetHeight(float deltaTime){
 
 void AAIMachine::HitByMachine(float rightDot) {
     DesiredDeltaX = DeltaX + 100 * FMath::Sign(rightDot);
+    Energy -= ShieldDamage;
+    CheckDepletion();
 }
 void AAIMachine::HitByMachine2(float forwardDot) {
     PreSpeed *= 1 + 0.01f * FMath::Sign(forwardDot);
+    Energy -= ShieldDamage;
+    CheckDepletion();
 }
 void AAIMachine::HitByPlayer(FVector hitDelta, float deltaTime) {
     //HitDelta += hitDelta;
     //PreSpeed += FVector::DotProduct(SurfaceComponent->GetForwardVector(), HitDelta) * deltaTime;
     GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("hit by player")));
+    Energy -= ShieldDamage;
+    CheckDepletion();
 }
 
 void AAIMachine::Bounce(FVector hitDirection, float hitMagnitude, bool external) {
@@ -313,6 +320,8 @@ void AAIMachine::Bounce(FVector hitDirection, float hitMagnitude, bool external)
             }
             GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("AI magnitude: %f"), hitMagnitude));
         }
+        Energy -= ShieldDamage;
+        CheckDepletion();
         bBouncing = true;
         HitDelta = hitDirection * hitMagnitude * HitBounceScaler;
         
@@ -322,6 +331,13 @@ void AAIMachine::Bounce(FVector hitDirection, float hitMagnitude, bool external)
         //VisibleComponent->AddWorldOffset(SurfaceComponent->GetRightVector() * 20.5f * sign);
         //DeltaX += 20.5f * FMath::Sign(DeltaX);
         //DesiredDeltaX = DeltaX;
+    }
+}
+
+void AAIMachine::CheckDepletion() {
+    if (Energy <= 0) {
+        //Destroy();
+        MaxSpeed = 0.f;
     }
 }
 
