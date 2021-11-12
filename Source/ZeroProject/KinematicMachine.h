@@ -81,6 +81,8 @@ protected:
     
     UPROPERTY(BlueprintReadWrite)
         bool bCanAccelerate = false;
+	UPROPERTY(BlueprintReadOnly)
+		int SpeedKH = 0;
     
 
 	FVector GravityDirection = -FVector::UpVector;

@@ -136,6 +136,7 @@ void AKinematicMachine::Tick(float DeltaTime)
 	speed /= 100; // m / h
 	speed /= 1000; // km / k
 	speed *= 10; //scale adjustments
+	SpeedKH = speed;
 	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Speed: %f"), speed));
 	CameraComponent->FieldOfView = FMath::Clamp(FMath::Lerp(CameraComponent->FieldOfView, speed/22 + 60, DeltaTime * 5), 100.f, 180.f);
 	LastMachineLocation = KinematicComponent->GetComponentLocation();
@@ -435,8 +436,8 @@ void AKinematicMachine::Bounce(FVector hitDirection, float hitMagnitude, bool ex
 }
 
 void AKinematicMachine::StartRace() {
+	bCanAccelerate = true;
 	if (bPendingAcceleration) {
-		bCanAccelerate = true;
 		bPendingAcceleration = false;
 		Accelerate();
 	}
