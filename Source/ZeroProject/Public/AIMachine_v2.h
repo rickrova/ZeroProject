@@ -80,7 +80,7 @@ protected:
     UPROPERTY(BlueprintReadWrite)
         bool bCanRace = false;
 
-    UPROPERTY(BlueprintReadOnly)
+    UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
         float Speed = 0.f;
 
     int Gravity = 9800;
@@ -107,6 +107,7 @@ protected:
 
     void SetOrientation();
     void Move();
+    void CalculateOnRailSpeed(float deltaTime);
 
 public:
     UPROPERTY(BlueprintReadWrite)

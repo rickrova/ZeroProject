@@ -38,6 +38,7 @@ void AAIMachine_v2::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
     if (bCanRace) {
         Move();
+        CalculateOnRailSpeed(DeltaTime);
     }
 }
 
@@ -53,20 +54,42 @@ void AAIMachine_v2::Move() {
     FHitResult* hit = new FHitResult();
     FVector traceStart = Guide->GetSocketLocation("BoneSocket") + DeltaXY + SurfaceComponent->GetUpVector() * TraceOffset * 0.5f;
     FVector traceEnd = traceStart - SurfaceComponent->GetUpVector() * TraceOffset;
+    FVector forwardAxis = FRotationMatrix(Guide->GetSocketRotation("BoneSocket")).GetScaledAxis(EAxis::X);
 
     if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECC_GameTraceChannel1)) {
-        SurfaceComponent->SetWorldLocation(hit->ImpactPoint);
-        SurfaceComponent->SetWorldRotation(Guide->GetSocketRotation("BoneSocket"));
-        FVector forwardAxis = FRotationMatrix(Guide->GetSocketRotation("BoneSocket")).GetScaledAxis(EAxis::X);
-        SurfaceComponent->SetWorldRotation(FRotationMatrix::MakeFromZX(hit->Normal, forwardAxis).Rotator());
-        DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
-        DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
-        VisibleComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * DistanceToFloor);
-        VisibleComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
+        DeltaXY = hit->ImpactPoint - Guide->GetSocketLocation("BoneSocket");
+    }
+
+    FRotator surfaceOrientation = FRotationMatrix::MakeFromZX(hit->Normal, forwardAxis).Rotator();
+
+    SurfaceComponent->SetWorldLocation(Guide->GetSocketLocation("BoneSocket") + DeltaXY);
+    SurfaceComponent->SetWorldRotation(surfaceOrientation);
+    DynamicComponent->SetWorldLocation(SurfaceComponent->GetComponentLocation());
+    DynamicComponent->SetWorldRotation(SurfaceComponent->GetComponentRotation());
+
+    FVector desiredDeltaLocation = SurfaceComponent->GetComponentLocation() + SurfaceComponent->GetUpVector() * DistanceToFloor - VisibleComponent->GetComponentLocation();
+    VisibleComponent->MoveComponent(desiredDeltaLocation, SurfaceComponent->GetComponentRotation(), true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+    if (hit->bBlockingHit) {
     }
 }
 
 void AAIMachine_v2::SetOrientation() {
+}
+
+void AAIMachine_v2::CalculateOnRailSpeed(float deltaTime) {
+    float deltaSpeed = AccelerationRate * deltaTime * deltaTime;
+    if (PreSpeed < MaxSpeed) {
+        PreSpeed += deltaSpeed;
+    }
+    else if (PreSpeed > MaxSpeed) {
+        PreSpeed -= deltaSpeed;
+    }
+    if (FMath::Abs(PreSpeed - MaxSpeed) < deltaSpeed) {
+        PreSpeed = MaxSpeed;
+    }
+    CoveredDistance += Speed;
+
+    Speed = PreSpeed;
 }
 
 void AAIMachine_v2::StartRace() {
