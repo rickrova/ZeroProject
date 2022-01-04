@@ -88,6 +88,9 @@ protected:
     float VerticalSpeed = 0;
     float LastVerticalDelta;
     float LastHeight;
+    float DeltaDeltaX;
+    float TempDeltaX;
+    float LastDeltaX;
     bool bCanSetNewDesiredDeltaX = false;
     bool bGrounded = true;
     bool bBouncing = false;
@@ -95,8 +98,10 @@ protected:
     FVector LastSurfaceLocation;
     FVector DesiredLocation;
     FRotator DesiredRotation;
+    FVector DeltaLocationX;
+    FVector DeltaLocationY;
     FVector HitDelta;
-    FVector DeltaXY;
+    FVector LocalDeltaXY;
     FTimerHandle TimerHandle;
     FTimerDelegate TimerDelegate;
 
@@ -106,7 +111,8 @@ protected:
         void Init();
 
     void SetOrientation();
-    void Move();
+    void Drive(float deltaTime);
+    void Move(float deltaTime);
     void CalculateOnRailSpeed(float deltaTime);
 
 public:
@@ -115,7 +121,7 @@ public:
     UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
         float CoveredDistance = 0.0f;
 
-    float DesiredDeltaX = 0;
+    float DesiredDeltaX;
     FVector RealDeltaLocation;
 
     void CheckDepletion();
