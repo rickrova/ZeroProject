@@ -14,6 +14,7 @@ AAIMachine_v2::AAIMachine_v2()
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
     VisibleComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisibleComponent"));
     SurfaceComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("SurfaceComponent"));
+    SocketArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("SocketArrow"));
     DynamicComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("DynamicComponent"));
     Guide = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Guide"));
 
@@ -21,6 +22,9 @@ AAIMachine_v2::AAIMachine_v2()
     DynamicComponent->SetupAttachment(RootComponent);
     VisibleComponent->SetupAttachment(RootComponent);
     Guide->SetupAttachment(RootComponent);
+     
+    SocketArrow->AttachToComponent(Guide, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("BoneSocket"));
+    
 }
 
 void AAIMachine_v2::BeginPlay()
@@ -78,6 +82,10 @@ void AAIMachine_v2::Drive(float deltaTime){
     }
     
     TempDeltaX = FMath::Lerp(TempDeltaX, DesiredDeltaX, deltaTime * Steering);
+    if(FMath::Abs(DesiredDeltaX - TempDeltaX) < 0.01f){
+        DesiredDeltaX = 0;
+        TempDeltaX = 0;
+    }
     DeltaDeltaX = TempDeltaX - LastDeltaX;
     LastDeltaX = TempDeltaX;
     
@@ -96,15 +104,15 @@ void AAIMachine_v2::Drive(float deltaTime){
 
 void AAIMachine_v2::Move(float deltaTime) {
     FHitResult* hit = new FHitResult();
-    FVector traceStart = Guide->GetSocketLocation("BoneSocket")
-    + DeltaLocationX
-    + DeltaLocationY + SurfaceComponent->GetUpVector() * TraceOffset * 0.5f;
+    FVector traceStart = SocketArrow->GetComponentLocation()
+    + SurfaceComponent->GetUpVector() * TraceOffset * 0.5f;
     FVector traceEnd = traceStart - SurfaceComponent->GetUpVector() * TraceOffset;
     FVector forwardAxis = FRotationMatrix(Guide->GetSocketRotation("BoneSocket")).GetScaledAxis(EAxis::X);
 
     DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor::Green, false);
     if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECC_GameTraceChannel1)) {
         //DeltaXY = hit->ImpactPoint - Guide->GetSocketLocation("BoneSocket");
+        SurfaceComponent->SetWorldLocation(hit->ImpactPoint);
     }
 
     FRotator surfaceOrientation = FRotationMatrix::MakeFromZX(hit->Normal, forwardAxis).Rotator();
@@ -118,7 +126,9 @@ void AAIMachine_v2::Move(float deltaTime) {
     VisibleComponent->MoveComponent(desiredDeltaLocation, SurfaceComponent->GetComponentRotation(), true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
     if (hit->bBlockingHit) {
     }
-    LocalDeltaXY = SurfaceComponent->GetComponentLocation();
+    FVector tempLocation = FVector::VectorPlaneProject(SurfaceComponent->GetComponentLocation(), forwardAxis);
+    SocketArrow->SetWorldLocation(SurfaceComponent->GetComponentLocation());
+    //FTransform socketTransform = Guide->GetSocketTransform("BoneSocket", ERelativeTransformSpace::RTS_Component);
 }
 
 void AAIMachine_v2::SetOrientation() {

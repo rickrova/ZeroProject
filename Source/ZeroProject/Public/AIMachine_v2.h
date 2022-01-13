@@ -29,6 +29,8 @@ protected:
         class UArrowComponent* SurfaceComponent;
     UPROPERTY(VisibleAnywhere)
         class UArrowComponent* DynamicComponent;
+    UPROPERTY(VisibleAnywhere)
+        class UArrowComponent* SocketArrow;
     UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
         USkeletalMeshComponent* Guide;
 
