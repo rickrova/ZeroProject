@@ -28,10 +28,31 @@ void AAdaptativeMachine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	ComputeDetourAngle(DeltaTime);
+	ComputeDirection(DeltaTime);
 	ComputeMovement(DeltaTime);
 	AlignToSurface(DeltaTime);
 	CheckSplineProgress();
+}
+
+void AAdaptativeMachine::ComputeDirection(float deltaTime) {
+	if (bDetourAvailable) {
+		bDetourAvailable = false;
+		bOnDetour = true;
+		DesiredDetourAngle = FMath::RandRange(-5, 5);
+	}
+	if (bOnDetour) {
+		CurrentDetourAngle = FMath::Lerp(CurrentDetourAngle, DesiredDetourAngle, deltaTime * 0.25f);
+		if (DesiredDetourAngle != 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
+			DesiredDetourAngle = 0;
+		}
+		else if (DesiredDetourAngle == 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
+			CurrentDetourAngle = 0;
+			bOnDetour = false;
+			bDetourAvailable = true;
+			//int rand = FMath::RandRange(0, 5);
+			//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, 5, false, 5);
+		}
+	}
 }
 
 void AAdaptativeMachine::ComputeMovement(float deltaTime) {
@@ -54,6 +75,7 @@ void AAdaptativeMachine::ComputeMovement(float deltaTime) {
 	RootComponent->MoveComponent(desiredDeltaLocation, RootComponent->GetComponentRotation(),
 		true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 	if (hit->bBlockingHit) {
+		GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, FString::Printf(TEXT("hit")));
 		Bounce(hit);
 	}
 
@@ -88,6 +110,7 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 		RootComponent->MoveComponent(deltaLocation, FRotationMatrix::MakeFromXZ(currentDirection, SurfaceNormal).Rotator(),
 			true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
+			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, FString::Printf(TEXT("hit")));
 			Bounce(hit);
 		}
 		if (!bGrounded) {
@@ -129,48 +152,27 @@ void AAdaptativeMachine::ComputeClosestSurfaceNormal(float deltaTime) {
 void AAdaptativeMachine::Bounce(FHitResult* hit) {
 	BounceDirection = hit->Normal;
 	AAdaptativeMachine* otherMachine = Cast<AAdaptativeMachine>(hit->GetActor());
-	//float speedDifference = FMath::Abs(otherMachine->GetSpeed() - Speed) / MaxSpeed;
-	float speedDecimation = FMath::Clamp(FVector::DotProduct(GetActorForwardVector(), -BounceDirection), 0.25f, 1.f);
+	//float speedDifference = FMath::Abs(otherMachine->Speed - Speed) / MaxSpeed;
+	float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
 	
-	FRotator deltaRotator = FRotator::ZeroRotator;
+	/*FRotator deltaRotator = FRotator::ZeroRotator;
 	float side = FVector::DotProduct(BounceDirection, GetActorRightVector());
 	if (FMath::Abs(side) < 0.25f && Speed > MaxSpeed * 0.25f) {
 		side = FMath::Sign(FMath::RandRange(0, 1) - 0.5f) * 2;
 	}
 	deltaRotator.Yaw = SideBounceDeviationAngle * side;
-	RootComponent->AddLocalRotation(deltaRotator);
+	RootComponent->AddLocalRotation(deltaRotator);*/
 
+	BounceSpeed = Speed * speedDecimation;
 	Speed *= 1 - speedDecimation;
-	BounceSpeed = FakeBounceSpeed;
 	SurfaceAtractionSpeed = 0;
-	DesiredDetourAngle *= -1;
-	CurrentDetourAngle *= -1;
+	//DesiredDetourAngle *= -1;
+	//CurrentDetourAngle *= -1;
 
 	if (otherMachine) {
 		otherMachine->Push(-BounceDirection, BounceSpeed);
 	}
 
-}
-
-void AAdaptativeMachine::ComputeDetourAngle(float deltaTime) {
-	if(bDetourAvailable) {
-		bDetourAvailable = false;
-		bOnDetour = true;
-		DesiredDetourAngle = FMath::RandRange(-5, 5);
-	}
-	if (bOnDetour) {
-		CurrentDetourAngle = FMath::Lerp(CurrentDetourAngle, DesiredDetourAngle, deltaTime * 0.25f);
-		if (DesiredDetourAngle != 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
-			DesiredDetourAngle = 0;
-		}
-		else if (DesiredDetourAngle == 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
-			CurrentDetourAngle = 0;
-			bOnDetour = false;
-			bDetourAvailable = true;
-			//int rand = FMath::RandRange(0, 5);
-			//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, 5, false, 5);
-		}
-	}
 }
 
 void AAdaptativeMachine::CheckSplineProgress() {

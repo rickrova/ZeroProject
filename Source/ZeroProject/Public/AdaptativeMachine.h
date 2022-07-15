@@ -77,7 +77,7 @@ protected:
 	void AlignToSurface(float deltaTime);
 	void ComputeClosestSurfaceNormal(float deltaTime);
 	void Bounce(FHitResult* hit);
-	void ComputeDetourAngle(float deltaTime);
+	void ComputeDirection(float deltaTime);
 	void CheckSplineProgress();
 
 	UFUNCTION()
