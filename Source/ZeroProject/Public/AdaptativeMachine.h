@@ -67,7 +67,6 @@ protected:
 	FVector BounceDirection;
 	FVector SurfaceNormal;
 	FVector SurfacePoint;
-	FVector LastActorLocation;
 	//FVector ClosestSplinePoint;
 	bool bGrounded;
 	bool bDetourAvailable;
@@ -84,6 +83,8 @@ protected:
 	void SetDetour();
 
 public:
+	FVector LastDeltaLocation;
+	float Mass = 10.f;
 
 	void Push(FVector bounceDirection, float bounceSpeed);
 };

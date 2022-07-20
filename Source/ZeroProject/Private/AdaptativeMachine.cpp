@@ -70,6 +70,7 @@ void AAdaptativeMachine::ComputeMovement(float deltaTime) {
 	FVector desiredDeltaLocation = GetActorForwardVector() * Speed * deltaTime
 		+ SurfaceNormal * SurfaceAtractionSpeed * deltaTime
 		+ BounceDirection * BounceSpeed * deltaTime;
+	LastDeltaLocation = desiredDeltaLocation;
 	FHitResult* hit = new FHitResult();
 	
 	RootComponent->MoveComponent(desiredDeltaLocation, RootComponent->GetComponentRotation(),
@@ -153,7 +154,6 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 	BounceDirection = hit->Normal;
 	AAdaptativeMachine* otherMachine = Cast<AAdaptativeMachine>(hit->GetActor());
 	//float speedDifference = FMath::Abs(otherMachine->Speed - Speed) / MaxSpeed;
-	float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
 	
 	/*FRotator deltaRotator = FRotator::ZeroRotator;
 	float side = FVector::DotProduct(BounceDirection, GetActorRightVector());
@@ -163,14 +163,43 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 	deltaRotator.Yaw = SideBounceDeviationAngle * side;
 	RootComponent->AddLocalRotation(deltaRotator);*/
 
-	BounceSpeed = Speed * speedDecimation;
-	Speed *= 1 - speedDecimation;
-	SurfaceAtractionSpeed = 0;
 	//DesiredDetourAngle *= -1;
 	//CurrentDetourAngle *= -1;
 
 	if (otherMachine) {
+
+		float a, b, e;
+		float c, d, f;
+
+		a = Mass;
+		b = otherMachine->Mass;
+		e = Mass * LastDeltaLocation.X + otherMachine->Mass * otherMachine->LastDeltaLocation.X;
+
+		c = -1;
+		d = 1;
+		f = LastDeltaLocation.X - otherMachine->LastDeltaLocation.X;
+
+		float determinant = a * d - b * c;
+
+		if (determinant != 0) {
+			float vX1 = (e * d - b * f) / determinant;
+			float vX2 = (a * f - e * c) / determinant;
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, x = %f, y = %f"), vX1, vX2));
+		}
+		else {
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: determinant is zero\n"
+				"there are either no solutions or many solutions exist.")));
+		}
+
+
 		otherMachine->Push(-BounceDirection, BounceSpeed);
+	}
+	else {
+
+		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
+		BounceSpeed = Speed * speedDecimation;
+		Speed *= 1 - speedDecimation;
+		SurfaceAtractionSpeed = 0;
 	}
 
 }
