@@ -70,7 +70,9 @@ void AAdaptativeMachine::ComputeMovement(float deltaTime) {
 	FVector desiredDeltaLocation = GetActorForwardVector() * Speed * deltaTime
 		+ SurfaceNormal * SurfaceAtractionSpeed * deltaTime
 		+ BounceDirection * BounceSpeed * deltaTime;
-	LastDeltaLocation = desiredDeltaLocation;
+	LastDeltaLocation = GetActorForwardVector() * Speed
+		+ SurfaceNormal * SurfaceAtractionSpeed
+		+ BounceDirection * BounceSpeed;
 	FHitResult* hit = new FHitResult();
 	
 	RootComponent->MoveComponent(desiredDeltaLocation, RootComponent->GetComponentRotation(),
@@ -151,7 +153,6 @@ void AAdaptativeMachine::ComputeClosestSurfaceNormal(float deltaTime) {
 }
 
 void AAdaptativeMachine::Bounce(FHitResult* hit) {
-	BounceDirection = hit->Normal;
 	AAdaptativeMachine* otherMachine = Cast<AAdaptativeMachine>(hit->GetActor());
 	//float speedDifference = FMath::Abs(otherMachine->Speed - Speed) / MaxSpeed;
 	
@@ -168,38 +169,62 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 
 	if (otherMachine) {
 
-		float a, b, e;
-		float c, d, f;
+		float a, b, eX, eY, eZ;
+		float c, d, fX, fY, fZ;
 
 		a = Mass;
 		b = otherMachine->Mass;
-		e = Mass * LastDeltaLocation.X + otherMachine->Mass * otherMachine->LastDeltaLocation.X;
+		eX = Mass * LastDeltaLocation.X + otherMachine->Mass * otherMachine->LastDeltaLocation.X;
+		eY = Mass * LastDeltaLocation.Y + otherMachine->Mass * otherMachine->LastDeltaLocation.Y;
+		eZ = Mass * LastDeltaLocation.Z + otherMachine->Mass * otherMachine->LastDeltaLocation.Z;
 
 		c = -1;
 		d = 1;
-		f = LastDeltaLocation.X - otherMachine->LastDeltaLocation.X;
+		fX = LastDeltaLocation.X - otherMachine->LastDeltaLocation.X;
+		fY = LastDeltaLocation.Y - otherMachine->LastDeltaLocation.Y;
+		fZ = LastDeltaLocation.Z - otherMachine->LastDeltaLocation.Z;
 
 		float determinant = a * d - b * c;
 
 		if (determinant != 0) {
-			float vX1 = (e * d - b * f) / determinant;
-			float vX2 = (a * f - e * c) / determinant;
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, x = %f, y = %f"), vX1, vX2));
+			float vX1 = (eX * d - b * fX) / determinant;
+			float vX2 = (a * fX - eX * c) / determinant;
+
+			float vY1 = (eY * d - b * fY) / determinant;
+			float vY2 = (a * fY - eY * c) / determinant;
+
+			float vZ1 = (eZ * d - b * fZ) / determinant;
+			float vZ2 = (a * fZ - eZ * c) / determinant;
+
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vz1 = %f, vz2 = %f"), vZ1, vZ2));
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vy1 = %f, vy2 = %f"), vY1, vY2));
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vx1 = %f, vx2 = %f"), vX1, vX2));
+
+			float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -hit->Normal);
+			//BounceSpeed = Speed * speedDecimation;
+			Speed *= 1 - speedDecimation;
+			//SurfaceAtractionSpeed = 0;
+
+			BounceDirection = -hit->Normal;
+			BounceSpeed = otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
+
+			FVector otherDirection = -BounceDirection;
+			float otherSpeed = LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
+
+			otherMachine->Push(otherDirection, otherSpeed);
 		}
 		else {
 			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: determinant is zero\n"
 				"there are either no solutions or many solutions exist.")));
 		}
-
-
-		otherMachine->Push(-BounceDirection, BounceSpeed);
 	}
 	else {
 
+		BounceDirection = hit->Normal;
 		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
 		BounceSpeed = Speed * speedDecimation;
 		Speed *= 1 - speedDecimation;
-		SurfaceAtractionSpeed = 0;
+		SurfaceAtractionSpeed = 0; //this is just in case the collision occurs against a wall
 	}
 
 }
