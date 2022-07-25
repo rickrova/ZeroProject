@@ -65,7 +65,7 @@ void AAdaptativeMachine::ComputeMovement(float deltaTime) {
 	}
 	if (BounceSpeed > 0) {
 		BounceSpeed -= BounceDeccelerationRate * deltaTime;
-		BounceSpeed = FMath::Clamp(BounceSpeed, 0, MaxSpeed * 10);
+		BounceSpeed = FMath::Clamp(BounceSpeed, 0, MaxSpeed);
 	}
 	FVector desiredDeltaLocation = GetActorForwardVector() * Speed * deltaTime
 		+ SurfaceNormal * SurfaceAtractionSpeed * deltaTime
@@ -200,12 +200,12 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vy1 = %f, vy2 = %f"), vY1, vY2));
 			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vx1 = %f, vx2 = %f"), vX1, vX2));
 
-			float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -hit->Normal);
+			float speedDecimation = FVector::DotProduct(GetActorForwardVector(), hit->Normal);
 			//BounceSpeed = Speed * speedDecimation;
 			Speed *= 1 - speedDecimation;
 			//SurfaceAtractionSpeed = 0;
 
-			BounceDirection = -hit->Normal;
+			BounceDirection = hit->Normal;
 			BounceSpeed = otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
 
 			FVector otherDirection = -BounceDirection;
@@ -221,7 +221,7 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 	else {
 
 		BounceDirection = hit->Normal;
-		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
+		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), BounceDirection);
 		BounceSpeed = Speed * speedDecimation;
 		Speed *= 1 - speedDecimation;
 		SurfaceAtractionSpeed = 0; //this is just in case the collision occurs against a wall
@@ -248,6 +248,6 @@ void AAdaptativeMachine::SetDetour() {
 void AAdaptativeMachine::Push(FVector bounceDirection, float bounceSpeed) {
 	BounceDirection = bounceDirection;
 	BounceSpeed = bounceSpeed;
-	float speedDecimation = FMath::Clamp(FVector::DotProduct(GetActorForwardVector(), -BounceDirection), 0.25f, 1.f);
+	float speedDecimation = FVector::DotProduct(GetActorForwardVector(), BounceDirection);
 	Speed *= 1 - speedDecimation;
 }
