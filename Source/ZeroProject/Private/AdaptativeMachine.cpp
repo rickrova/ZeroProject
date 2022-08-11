@@ -206,10 +206,10 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 			//SurfaceAtractionSpeed = 0;
 
 			BounceDirection = -hit->Normal;
-			BounceSpeed = otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
+			BounceSpeed = 100000.f; // otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
 
 			FVector otherDirection = -BounceDirection;
-			float otherSpeed = LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
+			float otherSpeed = BounceSpeed; // LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
 
 			otherMachine->Push(otherDirection, otherSpeed);
 		}
