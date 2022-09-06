@@ -205,11 +205,15 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 			Speed *= 1 - speedDecimation;
 			//SurfaceAtractionSpeed = 0;
 
-			BounceDirection = -hit->Normal;
-			BounceSpeed = 100000.f; // otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
+			BounceDirection = FVector(vX1, vY1, vZ1).GetSafeNormal(); //hit->Normal;
+			float bounceDelta = otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
+			BounceSpeed = bounceDelta;
+			FVector desiredForward = (GetActorForwardVector() + BounceDirection * (bounceDelta / Speed)).GetSafeNormal();
+			SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("bounce speed = %f"), BounceSpeed));
 
-			FVector otherDirection = -BounceDirection;
-			float otherSpeed = BounceSpeed; // LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
+			FVector otherDirection = FVector(vX2, vY2, vZ2).GetSafeNormal(); //-BounceDirection;
+			float otherSpeed = LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
 
 			otherMachine->Push(otherDirection, otherSpeed);
 		}
@@ -250,4 +254,7 @@ void AAdaptativeMachine::Push(FVector bounceDirection, float bounceSpeed) {
 	BounceSpeed = bounceSpeed;
 	float speedDecimation = FMath::Clamp(FVector::DotProduct(GetActorForwardVector(), -BounceDirection), 0.25f, 1.f);
 	Speed *= 1 - speedDecimation;
+
+	FVector desiredForward = (GetActorForwardVector() + BounceDirection * (bounceSpeed / Speed)).GetSafeNormal();
+	SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
 }
