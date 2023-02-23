@@ -6,21 +6,20 @@
 #include "GameFramework/Actor.h"
 #include "SplineActor.h"
 #include "TrackManager.h"
-#include "AdaptativeMachine.generated.h"
+#include "DynamicMachine.generated.h"
 
 UCLASS()
-class ZEROPROJECT_API AAdaptativeMachine : public AActor
+class ZEROPROJECT_API ADynamicMachine : public AActor
 {
 	GENERATED_BODY()
 	
 public:	
 	// Sets default values for this actor's properties
-	AAdaptativeMachine();
+	ADynamicMachine();
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:	
 	// Called every frame
@@ -63,34 +62,19 @@ protected:
 	float RealSpeed;
 	float DesiredDetourAngle;
 	float CurrentDetourAngle;
-	float NormalizedDesiredAvoidAmount;
-	float NormalizedCurrentAvoidAmount;
 	int CompletedSegments;
 	FVector BounceDirection;
-	//FVector TrackDirection;
-	FVector MachineDirection;
 	FVector SurfaceNormal;
 	FVector SurfacePoint;
-	FVector AvoidDirection;
 	//FVector ClosestSplinePoint;
 	bool bGrounded;
 	bool bDetourAvailable;
 	bool bOnDetour;
-	
+
 	void ComputeMovement(float deltaTime);
 	void AlignToSurface(float deltaTime);
 	void ComputeClosestSurfaceNormal(float deltaTime);
-	void Bounce(FHitResult* hit);
 	void ComputeDirection(float deltaTime);
-	void CheckTrackProgress();
-	void CheckAvoidables();
+	void CheckSplineProgress();
 
-	UFUNCTION()
-	void SetDetour();
-
-public:
-	FVector LastDeltaLocation;
-	float Mass = 10.f;
-
-	void Push(FVector bounceDirection, float bounceSpeed);
 };

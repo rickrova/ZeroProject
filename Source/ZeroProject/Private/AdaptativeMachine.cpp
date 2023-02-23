@@ -30,29 +30,47 @@ void AAdaptativeMachine::Tick(float DeltaTime)
 
 	ComputeDirection(DeltaTime);
 	ComputeMovement(DeltaTime);
+	CheckTrackProgress();
 	AlignToSurface(DeltaTime);
-	CheckSplineProgress();
 }
 
 void AAdaptativeMachine::ComputeDirection(float deltaTime) {
-	if (bDetourAvailable) {
-		bDetourAvailable = false;
-		bOnDetour = true;
-		DesiredDetourAngle = FMath::RandRange(-5, 5);
-	}
-	if (bOnDetour) {
-		CurrentDetourAngle = FMath::Lerp(CurrentDetourAngle, DesiredDetourAngle, deltaTime * 0.25f);
-		if (DesiredDetourAngle != 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
-			DesiredDetourAngle = 0;
-		}
-		else if (DesiredDetourAngle == 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
-			CurrentDetourAngle = 0;
-			bOnDetour = false;
-			bDetourAvailable = true;
-			//int rand = FMath::RandRange(0, 5);
-			//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, 5, false, 5);
-		}
-	}
+
+	CheckAvoidables();
+	FVector trackDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(),
+		ESplineCoordinateSpace::World);
+
+	float rawAvoidDelta = NormalizedDesiredAvoidAmount - NormalizedCurrentAvoidAmount;
+	float normalizedAvoidDelta = FMath::Min(deltaTime * Steering, FMath::Abs(rawAvoidDelta)) * FMath::Sign(rawAvoidDelta);
+	NormalizedCurrentAvoidAmount = FMath::Clamp(NormalizedCurrentAvoidAmount +  normalizedAvoidDelta, 0, 1);
+	MachineDirection = FMath::Lerp(trackDirection, AvoidDirection, NormalizedCurrentAvoidAmount);
+	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("AvoidDirection: %f, %f, %f"),
+		AvoidDirection.X,
+		AvoidDirection.Y,
+		AvoidDirection.Z));
+	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("NormalizedDesiredAvoidAmount: %f"), NormalizedDesiredAvoidAmount));
+	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("NormalizedCurrentAvoidAmount: %f"), NormalizedCurrentAvoidAmount));
+
+
+
+	//if (bDetourAvailable) {
+	//	bDetourAvailable = false;
+	//	bOnDetour = true;
+	//	DesiredDetourAngle = FMath::RandRange(-5, 5);
+	//}
+	//if (bOnDetour) {
+	//	CurrentDetourAngle = FMath::Lerp(CurrentDetourAngle, DesiredDetourAngle, deltaTime * 0.25f);
+	//	if (DesiredDetourAngle != 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
+	//		DesiredDetourAngle = 0;
+	//	}
+	//	else if (DesiredDetourAngle == 0 && FMath::Abs(CurrentDetourAngle - DesiredDetourAngle) < 1) {
+	//		CurrentDetourAngle = 0;
+	//		bOnDetour = false;
+	//		bDetourAvailable = true;
+	//		//int rand = FMath::RandRange(0, 5);
+	//		//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, 5, false, 5);
+	//	}
+	//}
 }
 
 void AAdaptativeMachine::ComputeMovement(float deltaTime) {
@@ -61,21 +79,21 @@ void AAdaptativeMachine::ComputeMovement(float deltaTime) {
 		Speed = FMath::Clamp(Speed, 0, MaxSpeed);
 	}
 	if (!bGrounded) {
-		SurfaceAtractionSpeed -= SurfaceAtractionForce * deltaTime;
+		SurfaceAtractionSpeed += SurfaceAtractionForce * deltaTime;
 	}
 	if (BounceSpeed > 0) {
 		BounceSpeed -= BounceDeccelerationRate * deltaTime;
 		BounceSpeed = FMath::Clamp(BounceSpeed, 0, MaxSpeed * 10);
 	}
-	FVector desiredDeltaLocation = GetActorForwardVector() * Speed * deltaTime
-		+ SurfaceNormal * SurfaceAtractionSpeed * deltaTime
+	FVector desiredDeltaLocation = MachineDirection * Speed * deltaTime
+		- SurfaceNormal * SurfaceAtractionSpeed * deltaTime
 		+ BounceDirection * BounceSpeed * deltaTime;
-	LastDeltaLocation = GetActorForwardVector() * Speed
-		+ SurfaceNormal * SurfaceAtractionSpeed
+	LastDeltaLocation = MachineDirection * Speed
+		- SurfaceNormal * SurfaceAtractionSpeed
 		+ BounceDirection * BounceSpeed;
 	FHitResult* hit = new FHitResult();
 	
-	RootComponent->MoveComponent(desiredDeltaLocation, RootComponent->GetComponentRotation(),
+	RootComponent->MoveComponent(desiredDeltaLocation, FRotationMatrix::MakeFromXZ(MachineDirection, SurfaceNormal).Rotator(),
 		true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 	if (hit->bBlockingHit) {
 		GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, FString::Printf(TEXT("hit")));
@@ -99,18 +117,18 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 
 	//ClosestSplinePoint = Spline->Spline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
 
-	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
-		SurfaceNormal = hit->ImpactNormal;
+	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
 		SurfacePoint = hit->ImpactPoint;
+		SurfaceNormal = hit->ImpactNormal;
 		FVector deltaLocation = SurfacePoint + GetActorUpVector() * DistanceToSurface - GetActorLocation();
-		FVector desiredDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(),
+		/*FVector desiredDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(),
 			ESplineCoordinateSpace::World);
 		if (bOnDetour) {
 			desiredDirection = desiredDirection.RotateAngleAxis(CurrentDetourAngle, GetActorUpVector());
 		}
 		FVector currentDirection = FMath::Lerp(GetActorForwardVector(),
-			desiredDirection, Steering * deltaTime);
-		RootComponent->MoveComponent(deltaLocation, FRotationMatrix::MakeFromXZ(currentDirection, SurfaceNormal).Rotator(),
+			desiredDirection, Steering * deltaTime);*/
+		RootComponent->MoveComponent(deltaLocation, FRotationMatrix::MakeFromZX(SurfaceNormal, GetActorForwardVector()).Rotator(),
 			true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
 		if (hit->bBlockingHit) {
 			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, FString::Printf(TEXT("hit")));
@@ -123,14 +141,8 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 		GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("grounded")));
 	}
 	else {
-		DesiredDetourAngle = 0;
-		CurrentDetourAngle = 0;
-
-		FVector desiredForward = FMath::Lerp(GetActorForwardVector(),
-			Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World), Steering * deltaTime);
 		ComputeClosestSurfaceNormal(deltaTime);
-		FVector desiredUp = FMath::Lerp(GetActorUpVector(), SurfaceNormal, Steering * deltaTime);
-		SetActorRotation(FRotationMatrix::MakeFromZX(desiredUp, desiredForward).Rotator());
+		SetActorRotation(FRotationMatrix::MakeFromZX(SurfaceNormal, GetActorForwardVector()).Rotator());
 		if (bGrounded) {
 			bGrounded = false;
 		}
@@ -142,8 +154,8 @@ void AAdaptativeMachine::ComputeClosestSurfaceNormal(float deltaTime) {
 	FVector traceStart = GetActorLocation();
 	FVector traceEnd = Spline->Spline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
 
-	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
-		SurfaceNormal = hit->Normal;
+	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
+		SurfaceNormal = (GetActorLocation() - hit->ImpactPoint).GetSafeNormal(); //hit->Normal;
 		//SurfacePoint = hit->ImpactPoint;
 	}
 	else {
@@ -169,78 +181,120 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 
 	if (otherMachine) {
 
-		float a, b, eX, eY, eZ;
-		float c, d, fX, fY, fZ;
+		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -hit->Normal);
+		//BounceSpeed = Speed * speedDecimation;
+		Speed *= 1 - speedDecimation;
+		//SurfaceAtractionSpeed = 0;
 
-		a = Mass;
-		b = otherMachine->Mass;
-		eX = Mass * LastDeltaLocation.X + otherMachine->Mass * otherMachine->LastDeltaLocation.X;
-		eY = Mass * LastDeltaLocation.Y + otherMachine->Mass * otherMachine->LastDeltaLocation.Y;
-		eZ = Mass * LastDeltaLocation.Z + otherMachine->Mass * otherMachine->LastDeltaLocation.Z;
+		BounceDirection = hit->Normal; //FVector(vX1, vY1, vZ1).GetSafeNormal(); //hit->Normal;
+		float bounceDelta = 2000; // otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
+		BounceSpeed = bounceDelta;
+		FVector desiredForward = (GetActorForwardVector() + BounceDirection).GetSafeNormal();
+		SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
+		//GEngine->AddOnScreenDebugMessage(-1, 100.f, FColor::Yellow, FString::Printf(TEXT("bounce speed = %f"), BounceSpeed));
 
-		c = -1;
-		d = 1;
-		fX = LastDeltaLocation.X - otherMachine->LastDeltaLocation.X;
-		fY = LastDeltaLocation.Y - otherMachine->LastDeltaLocation.Y;
-		fZ = LastDeltaLocation.Z - otherMachine->LastDeltaLocation.Z;
+		FVector otherDirection = -BounceDirection; // FVector(vX2, vY2, vZ2).GetSafeNormal(); //-BounceDirection;
+		float otherSpeed = BounceSpeed; // LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
 
-		float determinant = a * d - b * c;
-
-		if (determinant != 0) {
-			float vX1 = (eX * d - b * fX) / determinant;
-			float vX2 = (a * fX - eX * c) / determinant;
-
-			float vY1 = (eY * d - b * fY) / determinant;
-			float vY2 = (a * fY - eY * c) / determinant;
-
-			float vZ1 = (eZ * d - b * fZ) / determinant;
-			float vZ2 = (a * fZ - eZ * c) / determinant;
-
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vz1 = %f, vz2 = %f"), vZ1, vZ2));
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vy1 = %f, vy2 = %f"), vY1, vY2));
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: result, vx1 = %f, vx2 = %f"), vX1, vX2));
-
-			float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -hit->Normal);
-			//BounceSpeed = Speed * speedDecimation;
-			Speed *= 1 - speedDecimation;
-			//SurfaceAtractionSpeed = 0;
-
-			BounceDirection = FVector(vX1, vY1, vZ1).GetSafeNormal(); //hit->Normal;
-			float bounceDelta = otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
-			BounceSpeed = bounceDelta;
-			FVector desiredForward = (GetActorForwardVector() + BounceDirection * (bounceDelta / Speed)).GetSafeNormal();
-			SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("bounce speed = %f"), BounceSpeed));
-
-			FVector otherDirection = FVector(vX2, vY2, vZ2).GetSafeNormal(); //-BounceDirection;
-			float otherSpeed = LastDeltaLocation.ProjectOnToNormal(otherDirection).Size();
-
-			otherMachine->Push(otherDirection, otherSpeed);
-		}
-		else {
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Cramer equations system: determinant is zero\n"
-				"there are either no solutions or many solutions exist.")));
-		}
+		otherMachine->Push(otherDirection, otherSpeed);
+		//GEngine->AddOnScreenDebugMessage(-1, 100.f, FColor::Yellow, FString::Printf(TEXT("original machine: %s"), *GetActorNameOrLabel()));
+		
 	}
 	else {
 
 		BounceDirection = hit->Normal;
 		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
-		BounceSpeed = Speed * speedDecimation;
+		BounceSpeed = FMath::Max(2000.f, Speed* speedDecimation);
 		Speed *= 1 - speedDecimation;
-		SurfaceAtractionSpeed = 0; //this is just in case the collision occurs against a wall
+		SurfaceAtractionSpeed = 0; //this is just in case collision occurs against a wall
 	}
 
 }
 
-void AAdaptativeMachine::CheckSplineProgress() {
+void AAdaptativeMachine::CheckTrackProgress() {
 
 	float progress = Spline->Spline->FindInputKeyClosestToWorldLocation(GetActorLocation())
 		/ (Spline->Spline->GetNumberOfSplinePoints() - 1.f);
-	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("progress: %f"), progress));
+	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("progress: %f"), progress));
 	if (progress == 1) {
 		CompletedSegments += 1;
 		Spline = TrackManager->GetNextSpline(CompletedSegments);
+	}
+}
+
+void AAdaptativeMachine::CheckAvoidables() {
+
+	FHitResult* hit = new FHitResult();
+	float rightCollisionDistance = 0;
+	float leftCollisionDistance = 0;
+	bool bPrioritizeAvoidFalling;
+	FVector traceStart;
+	FVector traceEnd;
+
+	//Check for risk of falling
+	if (bGrounded) {
+		//Down right
+		traceStart = GetActorLocation() + GetActorRightVector() * 300;
+		traceEnd = traceStart - GetActorUpVector() * 1000.f;
+		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
+			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+		}
+		else if(NormalizedCurrentAvoidAmount < 0.05f){
+			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+			NormalizedDesiredAvoidAmount = 0.5f;
+			AvoidDirection = -GetActorRightVector();
+			bPrioritizeAvoidFalling = true;
+		}
+		//Down left
+		traceStart = GetActorLocation() - GetActorRightVector() * 300;
+		traceEnd = traceStart - GetActorUpVector() * 1000.f;
+		DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
+			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+		}
+		else if (NormalizedCurrentAvoidAmount < 0.05f) {
+
+			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+			NormalizedDesiredAvoidAmount = 0.5f;
+			AvoidDirection = GetActorRightVector();
+			bPrioritizeAvoidFalling = true;
+		}
+
+		//Check for collision
+		if (!bPrioritizeAvoidFalling) {
+			//Front right
+			traceStart = GetActorLocation() - GetActorForwardVector() * 200 + GetActorRightVector() * 300;
+			traceEnd = GetActorLocation() + GetActorForwardVector() * 4000.f;
+			float traceDistance = FVector::Distance(traceStart, traceEnd);
+			if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_Vehicle)) {
+				DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+				rightCollisionDistance = (traceDistance - hit->Distance) / traceDistance;
+				GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("right distance: %f"), rightCollisionDistance));
+			}
+			else {
+
+				DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+			}
+			//Front left
+			traceStart = GetActorLocation() - GetActorForwardVector() * 200 - GetActorRightVector() * 300;
+			traceEnd = GetActorLocation() + GetActorForwardVector() * 4000.f;
+			if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_Vehicle)) {
+				DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+				leftCollisionDistance = (traceDistance - hit->Distance) / traceDistance;
+				GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("left distance: %f"), leftCollisionDistance));
+			}
+			else {
+				DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+			}
+			if (rightCollisionDistance != 0 || leftCollisionDistance != 0) {
+				int side = FMath::Sign(leftCollisionDistance - rightCollisionDistance);
+				NormalizedDesiredAvoidAmount = FMath::Max(NormalizedDesiredAvoidAmount, FMath::Max(rightCollisionDistance, leftCollisionDistance));
+				AvoidDirection = GetActorRightVector() * side;
+			}
+			else {
+				NormalizedDesiredAvoidAmount = 0;
+			}
+		}
 	}
 }
 
@@ -255,6 +309,7 @@ void AAdaptativeMachine::Push(FVector bounceDirection, float bounceSpeed) {
 	float speedDecimation = FMath::Clamp(FVector::DotProduct(GetActorForwardVector(), -BounceDirection), 0.25f, 1.f);
 	Speed *= 1 - speedDecimation;
 
-	FVector desiredForward = (GetActorForwardVector() + BounceDirection * (bounceSpeed / Speed)).GetSafeNormal();
+	FVector desiredForward = (GetActorForwardVector() + BounceDirection).GetSafeNormal();
 	SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
+	//GEngine->AddOnScreenDebugMessage(-1, 100.f, FColor::Yellow, FString::Printf(TEXT("pushed machine: %s"), *GetActorNameOrLabel()));
 }
