@@ -49,6 +49,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float Steering = 10;
 	UPROPERTY(VisibleAnywhere)
+		int CurrentSegment;
+	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
@@ -65,10 +67,10 @@ protected:
 	float CurrentDetourAngle;
 	float NormalizedDesiredAvoidAmount;
 	float NormalizedCurrentAvoidAmount;
-	int CompletedSegments;
 	FVector BounceDirection;
-	//FVector TrackDirection;
+	FVector TrackDirection;
 	FVector MachineDirection;
+	FVector LastMachineDirection;
 	FVector SurfaceNormal;
 	FVector SurfacePoint;
 	FVector AvoidDirection;

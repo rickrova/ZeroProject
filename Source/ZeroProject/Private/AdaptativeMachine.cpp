@@ -37,13 +37,14 @@ void AAdaptativeMachine::Tick(float DeltaTime)
 void AAdaptativeMachine::ComputeDirection(float deltaTime) {
 
 	CheckAvoidables();
-	FVector trackDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(),
-		ESplineCoordinateSpace::World);
+	// TrackDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(),
+	// 	ESplineCoordinateSpace::World);
 
 	float rawAvoidDelta = NormalizedDesiredAvoidAmount - NormalizedCurrentAvoidAmount;
 	float normalizedAvoidDelta = FMath::Min(deltaTime * Steering, FMath::Abs(rawAvoidDelta)) * FMath::Sign(rawAvoidDelta);
+
 	NormalizedCurrentAvoidAmount = FMath::Clamp(NormalizedCurrentAvoidAmount +  normalizedAvoidDelta, 0, 1);
-	MachineDirection = FMath::Lerp(trackDirection, AvoidDirection, NormalizedCurrentAvoidAmount);
+	MachineDirection = FMath::Lerp(GetActorForwardVector(), AvoidDirection, NormalizedCurrentAvoidAmount);
 	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("AvoidDirection: %f, %f, %f"),
 		AvoidDirection.X,
 		AvoidDirection.Y,
@@ -114,6 +115,8 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 	FHitResult* hit = new FHitResult();
 	FVector traceStart = GetActorLocation() + GetActorUpVector() * TraceUpDistance;
 	FVector traceEnd = traceStart - GetActorUpVector() * (TraceUpDistance + TraceDownDistance);
+	TrackDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(),
+		ESplineCoordinateSpace::World);
 
 	//ClosestSplinePoint = Spline->Spline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
 
@@ -128,8 +131,9 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 		}
 		FVector currentDirection = FMath::Lerp(GetActorForwardVector(),
 			desiredDirection, Steering * deltaTime);*/
-		RootComponent->MoveComponent(deltaLocation, FRotationMatrix::MakeFromZX(SurfaceNormal, GetActorForwardVector()).Rotator(),
+		RootComponent->MoveComponent(deltaLocation, FRotationMatrix::MakeFromZX(SurfaceNormal, TrackDirection).Rotator(),
 			true, hit, EMoveComponentFlags::MOVECOMP_NoFlags, ETeleportType::None);
+			LastMachineDirection = GetActorUpVector();
 		if (hit->bBlockingHit) {
 			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, FString::Printf(TEXT("hit")));
 			Bounce(hit);
@@ -142,9 +146,16 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 	}
 	else {
 		ComputeClosestSurfaceNormal(deltaTime);
-		SetActorRotation(FRotationMatrix::MakeFromZX(SurfaceNormal, GetActorForwardVector()).Rotator());
+		SetActorRotation(FRotationMatrix::MakeFromZX(SurfaceNormal, TrackDirection).Rotator());
 		if (bGrounded) {
 			bGrounded = false;
+			NormalizedDesiredAvoidAmount = 0.f;
+			float dot = FVector::DotProduct(LastMachineDirection, -TrackDirection);
+			float angleRatio = FMath::Asin(dot) / PI * 2;
+			GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("PR: %f"), angleRatio));
+
+			SurfaceAtractionSpeed = -Speed * angleRatio;
+			Speed += SurfaceAtractionSpeed;
 		}
 	}
 }
@@ -153,6 +164,7 @@ void AAdaptativeMachine::ComputeClosestSurfaceNormal(float deltaTime) {
 	FHitResult* hit = new FHitResult();
 	FVector traceStart = GetActorLocation();
 	FVector traceEnd = Spline->Spline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
+	
 
 	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
 		SurfaceNormal = (GetActorLocation() - hit->ImpactPoint).GetSafeNormal(); //hit->Normal;
@@ -189,8 +201,8 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 		BounceDirection = hit->Normal; //FVector(vX1, vY1, vZ1).GetSafeNormal(); //hit->Normal;
 		float bounceDelta = 2000; // otherMachine->LastDeltaLocation.ProjectOnToNormal(BounceDirection).Size();
 		BounceSpeed = bounceDelta;
-		FVector desiredForward = (GetActorForwardVector() + BounceDirection).GetSafeNormal();
-		SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
+		//FVector desiredForward = (GetActorForwardVector() + BounceDirection).GetSafeNormal();
+		//SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
 		//GEngine->AddOnScreenDebugMessage(-1, 100.f, FColor::Yellow, FString::Printf(TEXT("bounce speed = %f"), BounceSpeed));
 
 		FVector otherDirection = -BounceDirection; // FVector(vX2, vY2, vZ2).GetSafeNormal(); //-BounceDirection;
@@ -206,7 +218,7 @@ void AAdaptativeMachine::Bounce(FHitResult* hit) {
 		float speedDecimation = FVector::DotProduct(GetActorForwardVector(), -BounceDirection);
 		BounceSpeed = FMath::Max(2000.f, Speed* speedDecimation);
 		Speed *= 1 - speedDecimation;
-		SurfaceAtractionSpeed = 0; //this is just in case collision occurs against a wall
+		//SurfaceAtractionSpeed = 0; //this is just in case collision occurs against a wall
 	}
 
 }
@@ -217,8 +229,8 @@ void AAdaptativeMachine::CheckTrackProgress() {
 		/ (Spline->Spline->GetNumberOfSplinePoints() - 1.f);
 	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("progress: %f"), progress));
 	if (progress == 1) {
-		CompletedSegments += 1;
-		Spline = TrackManager->GetNextSpline(CompletedSegments);
+		CurrentSegment += 1;
+		Spline = TrackManager->GetNextSpline(CurrentSegment);
 	}
 }
 
@@ -227,35 +239,37 @@ void AAdaptativeMachine::CheckAvoidables() {
 	FHitResult* hit = new FHitResult();
 	float rightCollisionDistance = 0;
 	float leftCollisionDistance = 0;
-	bool bPrioritizeAvoidFalling;
+	bool bPrioritizeAvoidFalling = false;
 	FVector traceStart;
 	FVector traceEnd;
 
 	//Check for risk of falling
 	if (bGrounded) {
 		//Down right
-		traceStart = GetActorLocation() + GetActorRightVector() * 300;
-		traceEnd = traceStart - GetActorUpVector() * 1000.f;
+		traceStart = GetActorLocation() + GetActorRightVector() * 300 + GetActorUpVector() * 200 + GetActorForwardVector() * 200;
+		traceEnd = traceStart - GetActorUpVector() * 1200.f;
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
 			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
 		}
-		else if(NormalizedCurrentAvoidAmount < 0.05f){
+		else if(NormalizedCurrentAvoidAmount < 0.25f){
 			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
-			NormalizedDesiredAvoidAmount = 0.5f;
+			NormalizedDesiredAvoidAmount = 0.05f;
+			NormalizedCurrentAvoidAmount = NormalizedDesiredAvoidAmount;
 			AvoidDirection = -GetActorRightVector();
 			bPrioritizeAvoidFalling = true;
 		}
 		//Down left
-		traceStart = GetActorLocation() - GetActorRightVector() * 300;
-		traceEnd = traceStart - GetActorUpVector() * 1000.f;
+		traceStart = GetActorLocation() - GetActorRightVector() * 300 + GetActorUpVector() * 200 + GetActorForwardVector() * 200;
+		traceEnd = traceStart - GetActorUpVector() * 1200.f;
 		DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_GameTraceChannel1)) {
 			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
 		}
-		else if (NormalizedCurrentAvoidAmount < 0.05f) {
+		else if (NormalizedCurrentAvoidAmount < 0.25f) {
 
 			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
-			NormalizedDesiredAvoidAmount = 0.5f;
+			NormalizedDesiredAvoidAmount = 0.05f;
+			NormalizedCurrentAvoidAmount = NormalizedDesiredAvoidAmount;
 			AvoidDirection = GetActorRightVector();
 			bPrioritizeAvoidFalling = true;
 		}
@@ -309,7 +323,7 @@ void AAdaptativeMachine::Push(FVector bounceDirection, float bounceSpeed) {
 	float speedDecimation = FMath::Clamp(FVector::DotProduct(GetActorForwardVector(), -BounceDirection), 0.25f, 1.f);
 	Speed *= 1 - speedDecimation;
 
-	FVector desiredForward = (GetActorForwardVector() + BounceDirection).GetSafeNormal();
-	SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
+	//FVector desiredForward = (GetActorForwardVector() + BounceDirection).GetSafeNormal();
+	//SetActorRotation(FRotationMatrix::MakeFromZX(GetActorUpVector(), desiredForward).Rotator());
 	//GEngine->AddOnScreenDebugMessage(-1, 100.f, FColor::Yellow, FString::Printf(TEXT("pushed machine: %s"), *GetActorNameOrLabel()));
 }
