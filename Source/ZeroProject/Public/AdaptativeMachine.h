@@ -70,11 +70,12 @@ protected:
 	FVector BounceDirection;
 	FVector TrackDirection;
 	FVector MachineDirection;
-	FVector LastMachineDirection;
+	//FVector LastMachineDirection;
 	FVector SurfaceNormal;
 	FVector SurfacePoint;
 	FVector AvoidDirection;
 	//FVector ClosestSplinePoint;
+	FRotator VisibleRotation;
 	bool bGrounded;
 	bool bDetourAvailable;
 	bool bOnDetour;
@@ -82,7 +83,7 @@ protected:
 	void ComputeMovement(float deltaTime);
 	void AlignToSurface(float deltaTime);
 	void ComputeClosestSurfaceNormal(float deltaTime);
-	void Bounce(FHitResult* hit);
+	void Bounce(FHitResult* hit, FVector deltaLocation);
 	void ComputeDirection(float deltaTime);
 	void CheckTrackProgress();
 	void CheckAvoidables();
@@ -94,5 +95,5 @@ public:
 	FVector LastDeltaLocation;
 	float Mass = 10.f;
 
-	void Push(FVector bounceDirection, float bounceSpeed);
+	FVector Push(FVector pushVelocity);
 };
