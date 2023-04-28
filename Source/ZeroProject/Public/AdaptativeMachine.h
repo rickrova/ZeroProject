@@ -33,6 +33,10 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 10000.f;
 	UPROPERTY(EditAnywhere)
+		float BoostDeccelerationRate = 5000;
+	UPROPERTY(EditAnywhere)
+		float Boost = 2500.f;
+	UPROPERTY(EditAnywhere)
 		float TraceUpDistance = 170.f;
 	UPROPERTY(EditAnywhere)
 		float TraceDownDistance = 200.f;
@@ -48,17 +52,28 @@ protected:
 		float SideBounceDeviationAngle = 45;
 	UPROPERTY(EditAnywhere)
 		float Steering = 10;
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere)//remove visibility
 		int CurrentSegment;
+	UPROPERTY(VisibleAnywhere)//remove visibility
+		int Rank;
+	UPROPERTY(VisibleAnywhere)
+		UStaticMeshComponent* CollisionComponent;
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	//Debug purpose
+	UPROPERTY(VisibleAnywhere)//remove visibility
+		float RawProgress;
+	UPROPERTY(VisibleAnywhere)//remove visibility
+		float NetProgress;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)//remove visibility
 		UTrackManager* TrackManager;
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)//remove visibility
 		ASplineActor* Spline;
 
 	float Speed;
+	float BoostSpeed;
 	float SurfaceAtractionSpeed;
 	float BounceSpeed;
 	float CurrentYaw;
@@ -67,6 +82,15 @@ protected:
 	float CurrentDetourAngle;
 	float NormalizedDesiredAvoidAmount;
 	float NormalizedCurrentAvoidAmount;
+	float VisibleRotationSpeed;
+	float AlterPathTime;
+	float CurrentAlterPathTimeThreshold;
+	float BoostTime;
+	float CurrentBoostTimeThreshold;
+	UPROPERTY(VisibleAnywhere)
+	float Condition;
+	float StuckedTime;
+	int Lap;
 	FVector BounceDirection;
 	FVector TrackDirection;
 	FVector MachineDirection;
@@ -79,6 +103,8 @@ protected:
 	bool bGrounded;
 	bool bDetourAvailable;
 	bool bOnDetour;
+	bool bCanFindSurface;
+	bool bDepleted;
 	
 	void ComputeMovement(float deltaTime);
 	void AlignToSurface(float deltaTime);
@@ -86,7 +112,12 @@ protected:
 	void Bounce(FHitResult* hit, FVector deltaLocation);
 	void ComputeDirection(float deltaTime);
 	void CheckTrackProgress();
-	void CheckAvoidables();
+	void CheckAvoidables(float deltaTime);
+	void CheckForAlterPath();
+	void CheckForBoost();
+	void SoftDestroy();
+	void CheckStuck(float deltaTime, FVector initialLocation);
+	void UpdateVisibleRotation(float deltaTime);
 
 	UFUNCTION()
 	void SetDetour();
@@ -94,6 +125,10 @@ protected:
 public:
 	FVector LastDeltaLocation;
 	float Mass = 10.f;
+	bool bStucked;
+	int ID;
 
-	FVector Push(FVector pushVelocity);
+	FVector Push(FVector pushVelocity, bool bCalculateDamage);
+	void SetupTrackManager(UTrackManager* inTrackManager, int inID);
+	void SetRank(int inRank);
 };

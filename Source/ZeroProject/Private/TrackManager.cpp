@@ -1,24 +1,30 @@
 #include "TrackManager.h"
+#include "AdaptativeMachine.h"
 
 UTrackManager::UTrackManager()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
-
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 
 void UTrackManager::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	for (int i = 0; i < AIMachines.Num(); ++i) {
+		AIMachines[i]->SetupTrackManager(this, i);
+		MachinesProgress.Add(0.f);
+	}
+	ActiveMachines = AIMachines.Num();
 }
 
 
 void UTrackManager::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	UpdateMachinesRank();
 }
 
 ASplineActor* UTrackManager::GetNextSpline(int splineIndex) {
@@ -31,3 +37,19 @@ ASplineActor* UTrackManager::GetNextSpline(int splineIndex) {
 	}
 }
 
+void UTrackManager::SetMachineProgress(int inID, float inProgress) {
+	MachinesProgress[inID] = inProgress;
+}
+
+void UTrackManager::UpdateMachinesRank() {
+	TArray<float> orderedProgress = MachinesProgress;
+	orderedProgress.Sort();
+	for (int i = 0; i < MachinesProgress.Num(); ++i) {
+		int rank = MachinesProgress.Num() - orderedProgress.IndexOfByKey(MachinesProgress[i]);
+		AIMachines[i]->SetRank(rank);
+	}
+}
+
+void UTrackManager::ReportDisabledMachine() {
+	ActiveMachines -= 1;
+}

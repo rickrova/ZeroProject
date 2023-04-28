@@ -7,6 +7,7 @@
 #include "SplineActor.h"
 #include "TrackManager.generated.h"
 
+class AAdaptativeMachine;	// forward declaration
 
 UCLASS(ClassGroup = (Custom), BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
 class ZEROPROJECT_API UTrackManager : public UActorComponent
@@ -25,12 +26,21 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+protected:
+	TArray<float> MachinesProgress;
+
 public:
+
+	UPROPERTY(VisibleAnywhere)
+	int ActiveMachines;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		TArray<ASplineActor*> Splines;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<AAdaptativeMachine*> AIMachines;
 
 	ASplineActor* GetNextSpline(int splineIndex);
-
-		
+	void SetMachineProgress(int inID, float inProgress);
+	void UpdateMachinesRank();
+	void ReportDisabledMachine();
 };

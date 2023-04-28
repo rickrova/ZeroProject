@@ -13,5 +13,6 @@ UCLASS()
 class ZEROPROJECT_API AZeroProjectGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
-	
+
+public:
 };
