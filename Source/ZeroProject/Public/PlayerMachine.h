@@ -3,29 +3,27 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "SplineActor.h"
+#include "GameFramework/Pawn.h"
 #include "TrackManager.h"
 #include "Components/ArrowComponent.h"
-#include "AdaptativeMachine.generated.h"
+#include "Camera/CameraComponent.h"
+#include "PlayerMachine.generated.h"
 
 UCLASS()
-class ZEROPROJECT_API AAdaptativeMachine : public AActor
+class ZEROPROJECT_API APlayerMachine : public APawn
 {
 	GENERATED_BODY()
-	
-public:	
-	// Sets default values for this actor's properties
-	AAdaptativeMachine();
+
+public:
+	APlayerMachine();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-public:	
-	// Called every frame
+public:
 	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 protected:
 
@@ -59,7 +57,7 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float SideBounceDeviationAngle = 45;
 	UPROPERTY(EditAnywhere)
-		float Steering = 2.0;
+		float Steering = 100;
 	UPROPERTY(VisibleAnywhere)//remove visibility
 		int CurrentSegment;
 	UPROPERTY(VisibleAnywhere)//remove visibility
@@ -67,11 +65,13 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* CollisionComponent;
 	UPROPERTY(VisibleAnywhere)
+		UArrowComponent* ArrowComponent;
+	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* VisibleComponent;
 	UPROPERTY(EditAnywhere)
-		UArrowComponent* TargetOrientationArrowComponent;
-	UPROPERTY(EditAnywhere)
-		UArrowComponent* InitialOrientationArrowComponent;
+		UCameraComponent* CameraComponent;
+	UPROPERTY(VisibleAnywhere)
+		UArrowComponent* ArrowComponentDos;
 
 	//Debug purpose
 	UPROPERTY(VisibleAnywhere)//remove visibility
@@ -79,29 +79,29 @@ protected:
 	UPROPERTY(VisibleAnywhere)//remove visibility
 		float NetProgress;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)//remove visibility
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)//remove visibility
 		UTrackManager* TrackManager;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)//remove visibility
 		ASplineActor* Spline;
 
 	UPROPERTY(VisibleAnywhere)
-	float Speed;
+		float Speed;
 	UPROPERTY(VisibleAnywhere)
-	float BoostSpeed;
+		float BoostSpeed;
 	UPROPERTY(VisibleAnywhere)
-	float SurfaceAtractionSpeed;
+		float SurfaceAtractionSpeed;
 	UPROPERTY(VisibleAnywhere)
-	float BounceSpeed;
+		float BounceSpeed;
 	float CurrentYaw;
 	float RealSpeed;
 	float DesiredDetourAngle;
 	float CurrentDetourAngle;
 	UPROPERTY(VisibleAnywhere)
-	float NormalizedDesiredAvoidAmount;
+		float NormalizedDesiredAvoidAmount;
 	UPROPERTY(EditAnywhere)
-	float NormalizedDesiredDriveAmount;
+		float NormalizedDesiredDriveAmount;
 	UPROPERTY(VisibleAnywhere)
-	float NormalizedCurrentAvoidAmount;
+		float NormalizedCurrentAvoidAmount;
 	float VisibleRotationSpeed;
 	float AlterPathTime;
 	float CurrentAlterPathTimeThreshold;
@@ -110,11 +110,13 @@ protected:
 	float BoostTime;
 	float CurrentBoostTimeThreshold;
 	UPROPERTY(VisibleAnywhere)
-	float Condition;
+		float Condition;
 	float StuckedTime;
 	UPROPERTY(VisibleAnywhere)
-	float CurrentSteering;
+		float CurrentSteering;
 	float DrivingSteering = 0.1f;
+	float SpeedModifier = 0;
+	float BoostModifier = 0;
 	int Lap;
 	FVector BounceDirection;
 	FVector TrackDirection;
@@ -125,6 +127,8 @@ protected:
 	//FVector AvoidDirection;
 	FVector ClosestSplinePoint;
 	FRotator VisibleRotation;
+	FRotator CameraRotation;
+	FVector CameraLocation;
 	bool bGrounded;
 	bool bCanFindSurface;
 	bool bDepleted;
@@ -132,8 +136,17 @@ protected:
 
 	State MachineState;
 	UPROPERTY(VisibleAnywhere)
-	int INTState;
-	
+		int INTState;
+
+	FVector MovementInput;
+	bool bAccelerating;
+
+	void MoveForward(float AxisValue);
+	void MoveRight(float AxisValue);
+	void Accelerate();
+	void Deccelerate();
+	void ExpelBoost();
+
 	void ComputeMovement(float deltaTime);
 	void AlignToSurface(float deltaTime);
 	void ComputeClosestSurfaceNormal(float deltaTime);

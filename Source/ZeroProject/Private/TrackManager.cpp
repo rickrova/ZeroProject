@@ -1,5 +1,6 @@
 #include "TrackManager.h"
 #include "AdaptativeMachine.h"
+#include "PlayerMachine.h"
 
 UTrackManager::UTrackManager()
 {
@@ -17,7 +18,11 @@ void UTrackManager::BeginPlay()
 		AIMachines[i]->SetupTrackManager(this, i);
 		MachinesProgress.Add(0.f);
 	}
-	ActiveMachines = AIMachines.Num();
+	for (int i = 0; i < PlayersMachines.Num(); ++i) {
+		PlayersMachines[i]->SetupTrackManager(this, AIMachines.Num() + i);
+		MachinesProgress.Add(0.f);
+	}
+	ActiveMachines = AIMachines.Num() + PlayersMachines.Num();
 }
 
 
@@ -46,7 +51,12 @@ void UTrackManager::UpdateMachinesRank() {
 	orderedProgress.Sort();
 	for (int i = 0; i < MachinesProgress.Num(); ++i) {
 		int rank = MachinesProgress.Num() - orderedProgress.IndexOfByKey(MachinesProgress[i]);
-		AIMachines[i]->SetRank(rank);
+		if (i < AIMachines.Num()) {
+			AIMachines[i]->SetRank(rank);
+		}
+		else {
+			PlayersMachines[i - AIMachines.Num()]->SetRank(rank);
+		}
 	}
 }
 

@@ -8,6 +8,7 @@
 #include "TrackManager.generated.h"
 
 class AAdaptativeMachine;	// forward declaration
+class APlayerMachine;	// forward declaration
 
 UCLASS(ClassGroup = (Custom), BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
 class ZEROPROJECT_API UTrackManager : public UActorComponent
@@ -33,11 +34,16 @@ public:
 
 	UPROPERTY(VisibleAnywhere)
 	int ActiveMachines;
-
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		//TSubclassOf<AAdaptativeMachine>  AIMachineClassReference;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		//TSubclassOf<APlayerMachine>  PlayerMachineClassReference;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		TArray<ASplineActor*> Splines;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<AAdaptativeMachine*> AIMachines;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<APlayerMachine*> PlayersMachines;
 
 	ASplineActor* GetNextSpline(int splineIndex);
 	void SetMachineProgress(int inID, float inProgress);
