@@ -14,15 +14,6 @@ void UTrackManager::BeginPlay()
 {
 	Super::BeginPlay();
 
-	for (int i = 0; i < AIMachines.Num(); ++i) {
-		AIMachines[i]->SetupTrackManager(this, i);
-		MachinesProgress.Add(0.f);
-	}
-	for (int i = 0; i < PlayersMachines.Num(); ++i) {
-		PlayersMachines[i]->SetupTrackManager(this, AIMachines.Num() + i);
-		MachinesProgress.Add(0.f);
-	}
-	ActiveMachines = AIMachines.Num() + PlayersMachines.Num();
 }
 
 

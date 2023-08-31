@@ -12,12 +12,13 @@ AAdaptativeMachine::AAdaptativeMachine()
 
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	CollisionComponent->SetCollisionObjectType(ECollisionChannel::ECC_PhysicsBody);
-	CollisionComponent->SetGenerateOverlapEvents(false);
+	CollisionComponent->SetGenerateOverlapEvents(true);
 	CollisionComponent->CanCharacterStepUpOn = ECanBeCharacterBase::ECB_No;
 	FCollisionResponseContainer responseContainer = FCollisionResponseContainer(ECollisionResponse::ECR_Ignore);
 	responseContainer.WorldStatic = ECollisionResponse::ECR_Block;
 	responseContainer.PhysicsBody = ECollisionResponse::ECR_Block;
 	responseContainer.Vehicle = ECollisionResponse::ECR_Block;
+	responseContainer.Destructible = ECollisionResponse::ECR_Overlap;
 	CollisionComponent->SetCollisionResponseToChannels(responseContainer);
 	CollisionComponent->SetVisibility(false);
 
@@ -34,7 +35,7 @@ void AAdaptativeMachine::BeginPlay()
 {
 	Super::BeginPlay();
 
-	AlignToSurface(0);
+	//AlignToSurface(0);
 	//TimerDelegate.BindUFunction(this, FName("SetDetour"));
 	//bDetourAvailable = true;
 	bCanFindSurface = true;
@@ -48,7 +49,7 @@ void AAdaptativeMachine::BeginPlay()
 	Condition = 1.f;
 	CurrentAlterPathTimeThreshold = FMath::RandRange(0.25f, 3.f);
 	CurrentRestorePathTimeThreshold = FMath::RandRange(2.5f, 3.f);
-	CurrentBoostTimeThreshold = 1.f;
+	CurrentBoostTimeThreshold = 3.f;
 	CurrentSteering = DrivingSteering;
 }
 
@@ -72,6 +73,7 @@ void AAdaptativeMachine::Tick(float DeltaTime)
 		CheckAvoidables(DeltaTime);
 		CheckForAlterPath();
 		CheckForBoost();
+		CheckEnergy(DeltaTime);
 		CheckStuck(DeltaTime, initialLocation);
 		UpdateVisibleRotation(DeltaTime);
 	}
@@ -143,18 +145,45 @@ void AAdaptativeMachine::ComputeDirection(float deltaTime) {
 }
 
 void AAdaptativeMachine::ComputeMovement(float deltaTime) {
-	if (Speed < MaxSpeed) {
+	if (Speed < MaxSpeed && bCanRace) {
 		Speed += AccelerationRate * deltaTime;
 	}
-	else {
+	else if(bCanRace) {
 		Speed -= AccelerationRate * deltaTime;
 	}
-	if (BoostSpeed > 0) {
+	if (BoostRemainingTime > 0 && bCanRace) {
+		BoostRemainingTime -= deltaTime;
+		Condition -= deltaTime * 0.5f;
+		BoostSpeed += BoostAccelerationRate * deltaTime;
+		if (BoostRemainingTime < 0 || Condition <= deltaTime) {
+			BoostRemainingTime = 0;
+		}
+	}
+	if (ExternalBoostRemainingTime > 0 && bCanRace) {
+		ExternalBoostRemainingTime -= deltaTime;
+		BoostSpeed += BoostAccelerationRate * deltaTime;
+		if (ExternalBoostRemainingTime < 0) {
+			ExternalBoostRemainingTime = 0;
+		}
+	}
+	if (BoostRemainingTime == 0 && ExternalBoostRemainingTime == 0 && BoostSpeed > 0 && bCanRace) {
 		BoostSpeed -= BoostDeccelerationRate * deltaTime;
-		BoostSpeed = FMath::Clamp(BoostSpeed, 0, Boost);
+		if (BoostSpeed < 0) {
+			BoostSpeed = 0;
+		}
+	}
+	if (bCanRace && bGrounded && BoostRemainingTime == 0 && Condition < 1) {
+		Condition += deltaTime * 0.01f;
+		if (Condition > 1) {
+			Condition = 1;
+		}
 	}
 	if (!bGrounded) {
 		SurfaceAtractionSpeed += SurfaceAtractionForce * deltaTime;
+		MagneticDirection -= SurfaceNormal * SurfaceAtractionForce * deltaTime;
+	}
+	else if (MagneticDirection != FVector::ZeroVector) {
+		MagneticDirection = FVector::ZeroVector;
 	}
 	if (BounceSpeed > 0) {
 		BounceSpeed -= BounceDeccelerationRate * deltaTime;
@@ -162,8 +191,24 @@ void AAdaptativeMachine::ComputeMovement(float deltaTime) {
 	else {
 		BounceSpeed += BounceDeccelerationRate * deltaTime;
 	}
+
+	if (bMagneticZone) {
+		MagneticDirection = MagneticSpline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World)
+			- GetActorLocation();
+		//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("magnetic vector: x: %f, y: %f, z: %f"),
+			//MagneticDirection.X, MagneticDirection.Y, MagneticDirection.Z));
+		float desiredSize = (5000 - FMath::Clamp(MagneticDirection.Size() * 1.f, 0, 5000)) / 5000.f;
+		MagneticDirection.Normalize();
+		//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("size: %f"), desiredSize));
+		MagneticDirection *= desiredSize * deltaTime * 100000.f;
+	}
+	else {
+		MagneticDirection = FVector::ZeroVector;
+	}
+
 	FVector desiredDeltaLocation = MachineDirection * (Speed + BoostSpeed) * deltaTime
 		- SurfaceNormal * SurfaceAtractionSpeed * deltaTime
+		+ MagneticDirection * deltaTime
 		+ BounceDirection * BounceSpeed * deltaTime;
 
 	//GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, FString::Printf(TEXT("BounceDirection: %f, %f, %f, %s, %f"),
@@ -216,7 +261,7 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 	TrackDirection = Spline->Spline->FindDirectionClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
 	ClosestSplinePoint = Spline->Spline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
 
-	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
+	if (!bJumping && GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
 		SurfacePoint = hit->ImpactPoint;
 		SurfaceNormal = hit->ImpactNormal;
 		FVector deltaLocation = SurfacePoint + GetActorUpVector() * DistanceToSurface - GetActorLocation();
@@ -268,7 +313,10 @@ void AAdaptativeMachine::AlignToSurface(float deltaTime) {
 			Speed += SurfaceAtractionSpeed;
 			*/
 		}
-		DrawDebugLine(GetWorld(), GetActorLocation(), GetActorLocation() - SurfaceNormal * 500, FColor(255, 255, 0), false, 0.025f, 0, 10);
+		if (bJumping && SurfaceAtractionSpeed > 0) {
+			bJumping = false;
+		}
+		//DrawDebugLine(GetWorld(), GetActorLocation(), GetActorLocation() - SurfaceNormal * 500, FColor(255, 255, 0), false, 0.025f, 0, 10);
 	}
 	
 	if(FVector::Distance(GetActorLocation(), ClosestSplinePoint) > 100000){
@@ -280,25 +328,33 @@ void AAdaptativeMachine::ComputeClosestSurfaceNormal(float deltaTime) {
 	FHitResult* hit = new FHitResult();
 	FVector traceStart = GetActorLocation();
 	FVector traceEnd = ClosestSplinePoint;
-	DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 255, 0), false, 0.025f, 0, 10);
+	//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 255, 0), false, 0.025f, 0, 10);
 	
 
 	if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
-		SurfaceNormal = hit->Normal; //(GetActorLocation() - hit->ImpactPoint).GetSafeNormal(); 
+
+		//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, 0.025f, 0, 10);
+		if (FVector::DotProduct(GetActorUpVector(), hit->Normal) < 0) {
+			SurfaceNormal = hit->Normal;
+		}
+		else {
+			SurfaceNormal = FMath::Lerp(SurfaceNormal, hit->Normal, deltaTime * 2.f);
+		}
 	}
 	else {
 		traceStart = traceEnd;
 		FVector dir = (GetActorLocation() - traceStart).GetSafeNormal();
 		traceEnd = traceStart + dir * 15000;
-		DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 128, 0), false, 0.025f, 0, 10);
+		//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 128, 0), false, 0.025f, 0, 10);
 
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
 			SurfaceNormal = hit->Normal;
 		}
 		else {
 			//SoftDestroy();
-			SurfaceNormal = dir;
-			bCanFindSurface = false;
+			
+			//SurfaceNormal = dir;
+			//bCanFindSurface = false;
 		}
 	}
 }
@@ -376,17 +432,18 @@ void AAdaptativeMachine::CheckAvoidables(float deltaTime) {
 	FVector traceStart;
 	FVector traceEnd;
 
+	NormalizedDesiredAvoidAmount *= 0.5f;
+
 	//Check for risk of falling
 	if (bGrounded) {
-		NormalizedDesiredAvoidAmount *= 0.5f;
 		//Down right
 		traceStart = GetActorLocation() + GetActorRightVector() * 300 + GetActorUpVector() * 200 + GetActorForwardVector() * 200;
 		traceEnd = traceStart - GetActorUpVector() * 1200.f;
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
 		}
 		else {
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
 			NormalizedDesiredAvoidAmount = -1.f;
 			NormalizedDesiredDriveAmount = 0;
 			CurrentSteering = Steering;
@@ -401,13 +458,13 @@ void AAdaptativeMachine::CheckAvoidables(float deltaTime) {
 		//Down left
 		traceStart = GetActorLocation() - GetActorRightVector() * 300 + GetActorUpVector() * 200 + GetActorForwardVector() * 200;
 		traceEnd = traceStart - GetActorUpVector() * 1200.f;
-		DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+		//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
 		}
 		else if (!bPrioritizeAvoidFalling) {
 
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
 			NormalizedDesiredAvoidAmount = 1.f;
 			NormalizedDesiredDriveAmount = 0;
 			CurrentSteering = Steering;
@@ -428,6 +485,33 @@ void AAdaptativeMachine::CheckAvoidables(float deltaTime) {
 			bCanFindSurface = true;
 		}
 	}
+	else{
+		traceStart = GetActorLocation();
+		traceEnd = traceStart - SurfaceNormal * 15000;
+		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_WorldDynamic)) {
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 255, 0), false, 0.025f, 0, 10);
+
+			bPrioritizeAvoidFalling = false;
+			MachineState = State::STRAIGHT;
+		}
+		else {
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, 0.025f, 0, 10);
+			FVector safeDirection = (ClosestSplinePoint - traceStart).GetSafeNormal();
+			float side = FVector::DotProduct(safeDirection, GetActorRightVector());
+			//DrawDebugLine(GetWorld(), GetActorLocation(), GetActorLocation() + GetActorRightVector() * side * 500.f, FColor(0, 0, 255), false, 0.025f, 0, 20);
+			//DrawDebugLine(GetWorld(), GetActorLocation(), GetActorLocation() + GetActorRightVector() * 500.f, FColor(255, 0, 255), false, 0.025f, 0, 10);
+			NormalizedDesiredAvoidAmount = side;
+			NormalizedDesiredDriveAmount = 0;
+			CurrentSteering = Steering;
+			AlterPathTime = 0;
+			RestorePathTime = 0;
+			BoostTime = 0;
+			//NormalizedCurrentAvoidAmount = NormalizedDesiredAvoidAmount;
+			//AvoidDirection = GetActorRightVector();
+			bPrioritizeAvoidFalling = true;
+			MachineState = State::EVADING;
+		}
+	}
 
 	//Check for collision
 	if (MachineState != State::EVADING) {
@@ -441,7 +525,7 @@ void AAdaptativeMachine::CheckAvoidables(float deltaTime) {
 		traceEnd = GetActorLocation() + MachineDirection * 8000.f; // *(Speed / MaxSpeed);
 		float traceDistance = FVector::Distance(traceStart, traceEnd);
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_Vehicle, queryParams)) {
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
 			rightCollisionDistance = (traceDistance - hit->Distance) / traceDistance;
 			AAdaptativeMachine* otherMachine = Cast<AAdaptativeMachine>(hit->GetActor());
 			if (otherMachine) {
@@ -474,13 +558,13 @@ void AAdaptativeMachine::CheckAvoidables(float deltaTime) {
 		}
 		else {
 
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
 		}
 		//Front left
 		traceStart = GetActorLocation() - MachineDirection * 200 - flatRight * 300; // *(Speed / MaxSpeed);
 		traceEnd = GetActorLocation() + MachineDirection * 8000.f; // *(Speed / MaxSpeed);
 		if (GetWorld()->LineTraceSingleByChannel(*hit, traceStart, traceEnd, ECollisionChannel::ECC_Vehicle, queryParams)) {
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(255, 0, 0), false, -1, 0, 10);
 			leftCollisionDistance = (traceDistance - hit->Distance) / traceDistance;
 			AAdaptativeMachine* otherMachine = Cast<AAdaptativeMachine>(hit->GetActor());
 			if (otherMachine) {
@@ -512,7 +596,7 @@ void AAdaptativeMachine::CheckAvoidables(float deltaTime) {
 			//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, FString::Printf(TEXT("left distance: %f"), leftCollisionDistance));
 		}
 		else {
-			DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
+			//DrawDebugLine(GetWorld(), traceStart, traceEnd, FColor(0, 255, 0), false, -1, 0, 10);
 		}
 
 		float delta = rightCollisionDistance - leftCollisionDistance;
@@ -572,13 +656,29 @@ void AAdaptativeMachine::CheckForAlterPath() {
 
 void AAdaptativeMachine::CheckForBoost() {
 
-	if (BoostTime > CurrentBoostTimeThreshold && BoostSpeed == 0 && Condition > 0.5f) {
+	if (BoostTime > CurrentBoostTimeThreshold && BoostSpeed == 0 && Condition > 0.5f && bCanRace) {
 		BoostTime = 0;
 		float rand = FMath::FRand();
-		if (rand < Condition * ((float)Rank / TrackManager->ActiveMachines) * 0.25f) {
+		//if (rand < Condition * ((float)Rank / TrackManager->ActiveMachines) * 0.25f) {
+		if (rand < Condition * 0.1f) {
 			//GEngine->AddOnScreenDebugMessage(-1, 100.f, FColor::Yellow, FString::Printf(TEXT("Boost machine: %s"), *GetActorNameOrLabel()));
-			BoostSpeed = Boost;
-			Condition -= 0.025f;
+			//BoostSpeed = Boost;
+			//Condition -= 0.025f;
+
+			BoostRemainingTime = BoostDurationTime;
+		}
+	}
+}
+
+void AAdaptativeMachine::CheckEnergy(float deltaTime) {
+	if (bEnergyTransmission) {
+		Condition += EnergyTransmissionRatio * deltaTime;
+		if (Condition > 1) {
+			Condition = 1;
+		}
+		else if (Condition <= 0) {
+			Condition = 0;
+			SoftDestroy(TEXT("energy depleted"));
 		}
 	}
 }
@@ -631,7 +731,7 @@ FVector AAdaptativeMachine::Push(FVector pushVelocity, bool bCalculateDamage) {
 	}
 }
 
-void AAdaptativeMachine::SetupTrackManager(UTrackManager* inTrackManager, int inID) {
+void AAdaptativeMachine::SetupTrackManager(ATrackManager_v2* inTrackManager, int inID) {
 	TrackManager = inTrackManager;
 	ID = inID;
 	Spline = TrackManager->Splines[0];
@@ -639,25 +739,67 @@ void AAdaptativeMachine::SetupTrackManager(UTrackManager* inTrackManager, int in
 
 void AAdaptativeMachine::SetRank(int inRank) {
 	Rank = inRank;
-	CurrentBoostTimeThreshold = TrackManager->ActiveMachines - Rank + 1;
+	CurrentBoostTimeThreshold = 3.f; // (TrackManager->ActiveMachines - Rank + 1) / 4;
 }
 
 void AAdaptativeMachine::SoftDestroy(FString inText) {
-	//GEngine->AddOnScreenDebugMessage(-1, 100, FColor::Red, FString::Printf(TEXT("machine %s destroyed by %s"), *GetActorNameOrLabel(), *inText));
+	Disable();
+	TrackManager->ReportDisabledMachine();
+}
+
+void AAdaptativeMachine::Disable() {
 	MaxSpeed = 0;
-	Boost = 0;
+	BoostRemainingTime = 0;
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	bDepleted = true;
-	TrackManager->ReportDisabledMachine();
+}
+
+void AAdaptativeMachine::ExternalBoost(float inBoostRatio) {
+	ExternalBoostRemainingTime = inBoostRatio;
+}
+
+void AAdaptativeMachine::Jump(float inJumpRatio) {
+	bGrounded = false;
+	bJumping = true;
+	SurfaceAtractionSpeed = inJumpRatio;
+}
+
+void AAdaptativeMachine::Slow(float inSlowRatio) {
+	MaxSpeed *= inSlowRatio;
+	AccelerationRate /= inSlowRatio;
+	//Speed *= (1 - inSlowRatio) / 2.f;
+}
+
+void AAdaptativeMachine::ResetSlow(float inSlowRatio) {
+	MaxSpeed /= inSlowRatio;
+	AccelerationRate *= inSlowRatio;
+}
+
+void AAdaptativeMachine::StartEnergyTransmission(float inEnergy) {
+	EnergyTransmissionRatio = inEnergy;
+	bEnergyTransmission = true;
+}
+
+void AAdaptativeMachine::EndEnergyTransmission() {
+	bEnergyTransmission = false;
+}
+
+void AAdaptativeMachine::StartMagnetic(USplineComponent* inSpline) {
+	MagneticSpline = inSpline;
+	bMagneticZone = true;
+}
+
+void AAdaptativeMachine::EndMagnetic() {
+	bMagneticZone = false;
 }
 
 void AAdaptativeMachine::CheckStuck(float deltaTime, FVector initialLocation) {
 	LastDeltaLocation = (GetActorLocation() - initialLocation) / deltaTime;
-	if (LastDeltaLocation.Size() == 0) {
+	if (LastDeltaLocation.Size() == 0 && bCanRace) {
 		if (StuckedTime > 1) {
 			if (!bStucked) {
 				bStucked = true;
-				GEngine->AddOnScreenDebugMessage(-1, 100, FColor::Red, FString::Printf(TEXT("machine %s stucked"), *GetActorNameOrLabel()));
+				//GEngine->AddOnScreenDebugMessage(-1, 100, FColor::Red, FString::Printf(TEXT("machine %s stucked"), *GetActorNameOrLabel()));
 			}
 			if (StuckedTime > 3) {
 				SoftDestroy(TEXT("stucked too long"));
@@ -665,7 +807,7 @@ void AAdaptativeMachine::CheckStuck(float deltaTime, FVector initialLocation) {
 		}
 		StuckedTime += deltaTime;
 	}
-	else if (StuckedTime > 0) {
+	else if (StuckedTime > 0 && bCanRace) {
 		StuckedTime = 0;
 		bStucked = false;
 	}

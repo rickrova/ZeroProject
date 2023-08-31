@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "SplineActor.h"
-#include "TrackManager.h"
+#include "TrackManager_v2.h"
 #include "Components/ArrowComponent.h"
 #include "AdaptativeMachine.generated.h"
 
@@ -41,9 +41,11 @@ protected:
 	UPROPERTY(EditAnywhere)
 		float MaxSpeed = 20000.f;
 	UPROPERTY(EditAnywhere)
+		float BoostAccelerationRate = 5000;
+	UPROPERTY(EditAnywhere)
 		float BoostDeccelerationRate = 500;
 	UPROPERTY(EditAnywhere)
-		float Boost = 2500.f;
+		float BoostDurationTime = 2.f;
 	UPROPERTY(EditAnywhere)
 		float TraceUpDistance = 400.f;
 	UPROPERTY(EditAnywhere)
@@ -80,9 +82,7 @@ protected:
 		float NetProgress;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)//remove visibility
-		UTrackManager* TrackManager;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)//remove visibility
-		ASplineActor* Spline;
+		ATrackManager_v2* TrackManager;
 
 	UPROPERTY(VisibleAnywhere)
 	float Speed;
@@ -115,10 +115,14 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	float CurrentSteering;
 	float DrivingSteering = 0.1f;
+	float BoostRemainingTime = 0;
+	float ExternalBoostRemainingTime = 0;
+	float EnergyTransmissionRatio = 0;
 	int Lap;
 	FVector BounceDirection;
 	FVector TrackDirection;
 	FVector MachineDirection;
+	FVector MagneticDirection;
 	//FVector LastMachineDirection;
 	FVector SurfaceNormal;
 	FVector SurfacePoint;
@@ -129,6 +133,14 @@ protected:
 	bool bCanFindSurface;
 	bool bDepleted;
 	bool bInstantSteer;
+	bool bSignedIn;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bCanRace = false;
+	bool bEnergyTransmission = false;
+	bool bMagneticZone = false;
+	bool bJumping = false;
+
+	USplineComponent* MagneticSpline;
 
 	State MachineState;
 	UPROPERTY(VisibleAnywhere)
@@ -143,6 +155,7 @@ protected:
 	void CheckAvoidables(float deltaTime);
 	void CheckForAlterPath();
 	void CheckForBoost();
+	void CheckEnergy(float);
 	void SoftDestroy(FString inText);
 	void CheckStuck(float deltaTime, FVector initialLocation);
 	void UpdateVisibleRotation(float deltaTime);
@@ -153,8 +166,19 @@ public:
 	bool bStucked;
 	int ID;
 	AAdaptativeMachine* CurrentCollisionMachine;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)//remove visibility
+		ASplineActor* Spline;
 
 	FVector Push(FVector pushVelocity, bool bCalculateDamage);
-	void SetupTrackManager(UTrackManager* inTrackManager, int inID);
+	void SetupTrackManager(ATrackManager_v2* inTrackManager, int inID);
 	void SetRank(int inRank);
+	void Disable();
+	void ExternalBoost(float);
+	void Jump(float);
+	void Slow(float);
+	void ResetSlow(float);
+	void StartEnergyTransmission(float);
+	void EndEnergyTransmission();
+	void StartMagnetic(USplineComponent*);
+	void EndMagnetic();
 };

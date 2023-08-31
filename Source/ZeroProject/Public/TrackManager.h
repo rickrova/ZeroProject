@@ -49,4 +49,7 @@ public:
 	void SetMachineProgress(int inID, float inProgress);
 	void UpdateMachinesRank();
 	void ReportDisabledMachine();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "CodeEvents")
+		void StartRace();
 };
